@@ -484,7 +484,7 @@ async function writeWebDevTsconfig(config: ToolDevConfig): Promise<void> {
   const tsconfigPath = config.apps.web.nextTsconfigPath;
   const tsconfigDir = path.dirname(tsconfigPath);
   const sourceTsconfig = path.join(webRoot, "tsconfig.json");
-  const relativeSourceTsconfig = path.relative(tsconfigDir, sourceTsconfig) || "./tsconfig.json";
+  const relativeSourceTsconfig = (path.relative(tsconfigDir, sourceTsconfig) || "./tsconfig.json").replaceAll("\\", "/");
 
   await mkdir(tsconfigDir, { recursive: true });
   await writeFile(

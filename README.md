@@ -1,17 +1,27 @@
 # Open Design
 
-> **The open-source alternative to [Claude Design][cd].** Local-first, web-deployable, BYOK at every layer — your existing coding agent (Claude Code, Codex, Cursor Agent, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI) becomes the design engine, driven by **19 composable Skills** and **71 brand-grade Design Systems**.
+> **The open-source alternative to [Claude Design][cd].** Local-first, web-deployable, BYOK at every layer — **10 coding-agent CLIs** auto-detected on your `PATH` (Claude Code, Codex, Cursor Agent, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Hermes, Kimi, Pi) become the design engine, driven by **31 composable Skills** and **72 brand-grade Design Systems**. No CLI? An OpenAI-compatible BYOK proxy is the same loop minus the spawn.
 
 <p align="center">
   <img src="docs/assets/banner.png" alt="Open Design — editorial cover: design with the agent on your laptop" width="100%" />
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" /></a>
-  <a href="#supported-coding-agents"><img alt="Agents" src="https://img.shields.io/badge/agents-Claude%20%7C%20Codex%20%7C%20Cursor%20%7C%20Gemini%20%7C%20OpenCode%20%7C%20Qwen%20%7C%20Copilot-black" /></a>
-  <a href="#design-systems"><img alt="Design systems" src="https://img.shields.io/badge/design%20systems-71-orange" /></a>
-  <a href="#skills"><img alt="Skills" src="https://img.shields.io/badge/skills-19-teal" /></a>
-  <a href="QUICKSTART.md"><img alt="Quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green" /></a>
+  <a href="https://github.com/nexu-io/open-design/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=ffd700&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/nexu-io/open-design/network/members"><img alt="Forks" src="https://img.shields.io/github/forks/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=2ecc71&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/nexu-io/open-design/issues"><img alt="Issues" src="https://img.shields.io/github/issues/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=ff6b6b&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/nexu-io/open-design/pulls"><img alt="Pull Requests" src="https://img.shields.io/github/issues-pr/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=9b59b6&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/nexu-io/open-design/graphs/contributors"><img alt="Contributors" src="https://img.shields.io/github/contributors/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=3498db&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/nexu-io/open-design/commits/main"><img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=e67e22&logo=git&logoColor=white" /></a>
+  <a href="https://github.com/nexu-io/open-design/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/nexu-io/open-design?style=for-the-badge&labelColor=0d1117&color=8e44ad&logo=git&logoColor=white" /></a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square" /></a>
+  <a href="#supported-coding-agents"><img alt="Agents" src="https://img.shields.io/badge/agents-10%20CLIs%20%2B%20BYOK%20proxy-black?style=flat-square" /></a>
+  <a href="#design-systems"><img alt="Design systems" src="https://img.shields.io/badge/design%20systems-72-orange?style=flat-square" /></a>
+  <a href="#skills"><img alt="Skills" src="https://img.shields.io/badge/skills-31-teal?style=flat-square" /></a>
+  <a href="QUICKSTART.md"><img alt="Quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green?style=flat-square" /></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ko.md">한국어</a></p>
@@ -39,13 +49,18 @@ OD stands on four open-source shoulders:
 
 | | What you get |
 |---|---|
-| **Coding agents supported** | Claude Code · Codex CLI · Cursor Agent · Gemini CLI · OpenCode · Qwen Code · GitHub Copilot CLI · Anthropic API (BYOK fallback) |
-| **Design systems built-in** | **71** — 2 hand-authored starters + 69 product systems (Linear, Stripe, Vercel, Airbnb, Tesla, Notion, Anthropic, Apple, Cursor, Supabase, Figma, …) imported from [`awesome-design-md`][acd2] |
-| **Skills built-in** | **19** — prototype, deck, mobile, dashboard, pricing, docs, blog, SaaS landing, plus 10 document/work-product templates (PM spec, weekly update, OKRs, runbook, kanban, …) |
-| **Visual directions** | 5 curated schools (Editorial Monocle · Modern Minimal · Tech Utility · Brutalist · Soft Warm) — each ships a deterministic OKLch palette + font stack |
-| **Device frames** | iPhone 15 Pro · Pixel · iPad Pro · MacBook · Browser Chrome — pixel-accurate, shared across screens |
-| **Agent runtime** | Local daemon spawns the CLI in your project folder — agent gets real `Read`, `Write`, `Bash`, `WebFetch` against a real on-disk environment |
-| **Deployable to** | Local (`pnpm tools-dev`) · Vercel web layer |
+| **Coding-agent CLIs (10)** | Claude Code · Codex CLI · Cursor Agent · Gemini CLI · OpenCode · Qwen Code · GitHub Copilot CLI · Hermes (ACP) · Kimi CLI (ACP) · Pi (RPC) — auto-detected on `PATH`, swap with one click |
+| **BYOK fallback** | OpenAI-compatible proxy at `/api/proxy/stream` — paste `baseUrl` + `apiKey` + `model` and any vendor (Anthropic-via-OpenAI, DeepSeek, Groq, MiMo, OpenRouter, your self-hosted vLLM, or any other OpenAI-compatible provider) becomes the engine. Internal-IP/SSRF blocked at the daemon edge. |
+| **Design systems built-in** | **72** — 2 hand-authored starters + 70 product systems (Linear, Stripe, Vercel, Airbnb, Tesla, Notion, Anthropic, Apple, Cursor, Supabase, Figma, Xiaohongshu, …) imported from [`awesome-design-md`][acd2] |
+| **Skills built-in** | **31** — 27 in `prototype` mode (web-prototype, saas-landing, dashboard, mobile-app, gamified-app, social-carousel, magazine-poster, dating-web, sprite-animation, motion-frames, critique, tweaks, wireframe-sketch, pm-spec, eng-runbook, finance-report, hr-onboarding, invoice, kanban-board, team-okrs, …) + 4 in `deck` mode (`guizang-ppt` · `simple-deck` · `replit-deck` · `weekly-update`). Grouped in the picker by `scenario`: design / marketing / operation / engineering / product / finance / hr / sale / personal. |
+| **Visual directions** | 5 curated schools (Editorial Monocle · Modern Minimal · Warm Soft · Tech Utility · Brutalist Experimental) — each ships a deterministic OKLch palette + font stack ([`apps/web/src/prompts/directions.ts`](apps/web/src/prompts/directions.ts)) |
+| **Device frames** | iPhone 15 Pro · Pixel · iPad Pro · MacBook · Browser Chrome — pixel-accurate, shared across skills under [`assets/frames/`](assets/frames/) |
+| **Agent runtime** | Local daemon spawns the CLI in your project folder — agent gets real `Read`, `Write`, `Bash`, `WebFetch` against a real on-disk environment, with Windows `ENAMETOOLONG` fallbacks (stdin / prompt-file) on every adapter |
+| **Imports** | Drop a [Claude Design][cd] export ZIP onto the welcome dialog — `POST /api/import/claude-design` parses it into a real project so your agent can keep editing where Anthropic left off |
+| **Persistence** | SQLite at `.od/app.sqlite`: projects · conversations · messages · tabs · saved templates. Reopen tomorrow, todo card and open files are exactly where you left them. |
+| **Lifecycle** | One entry point: `pnpm tools-dev` (start / stop / run / status / logs / inspect / check) — boots daemon + web (+ desktop) under typed sidecar stamps |
+| **Desktop** | Optional Electron shell with sandboxed renderer + sidecar IPC (STATUS / EVAL / SCREENSHOT / CONSOLE / CLICK / SHUTDOWN) — drives `tools-dev inspect desktop screenshot` for E2E |
+| **Deployable to** | Local (`pnpm tools-dev`) · Vercel web layer · packaged Electron (placeholder, in-flight) |
 | **License** | Apache-2.0 |
 
 [acd2]: https://github.com/VoltAgent/awesome-design-md
@@ -79,8 +94,8 @@ OD stands on four open-source shoulders:
 <sub><b>Sandboxed preview</b> — every <code>&lt;artifact&gt;</code> renders in a clean srcdoc iframe. Editable in place via the file workspace; downloadable as HTML, PDF, ZIP.</sub>
 </td>
 <td width="50%">
-<img src="docs/screenshots/06-design-systems-library.png" alt="06 · 71-system library" /><br/>
-<sub><b>71-system library</b> — every product system shows its 4-color signature. Click for the full <code>DESIGN.md</code>, swatch grid, and live showcase.</sub>
+<img src="docs/screenshots/06-design-systems-library.png" alt="06 · 72-system library" /><br/>
+<sub><b>72-system library</b> — every product system shows its 4-color signature. Click for the full <code>DESIGN.md</code>, swatch grid, and live showcase.</sub>
 </td>
 </tr>
 <tr>
@@ -97,7 +112,9 @@ OD stands on four open-source shoulders:
 
 ## Skills
 
-19 skills ship in the box. Each is a folder under [`skills/`](skills/) following the Claude Code [`SKILL.md`][skill] convention with an extended `od:` frontmatter (`mode`, `platform`, `scenario`, `preview`, `design_system`).
+**31 skills ship in the box.** Each is a folder under [`skills/`](skills/) following the Claude Code [`SKILL.md`][skill] convention with an extended `od:` frontmatter that the daemon parses verbatim — `mode`, `platform`, `scenario`, `preview.type`, `design_system.requires`, `default_for`, `featured`, `fidelity`, `speaker_notes`, `animations`, `example_prompt` ([`apps/daemon/src/skills.ts`](apps/daemon/src/skills.ts)).
+
+Two top-level **modes** carry the catalog: **`prototype`** (27 skills — anything that renders as a single-page artifact, from a magazine landing to a phone screen to a PM spec doc) and **`deck`** (4 skills — horizontal-swipe presentations with deck-framework chrome). The **`scenario`** field is what the picker groups them by: `design` · `marketing` · `operation` · `engineering` · `product` · `finance` · `hr` · `sale` · `personal`.
 
 ### Showcase examples
 
@@ -146,41 +163,59 @@ The visually distinctive skills you'll most likely run first. Each ships a real 
 </tr>
 </table>
 
-### Design surfaces
+### Design & marketing surfaces (prototype mode)
 
-| Skill | Mode | Default for | What it produces |
+| Skill | Platform | Scenario | What it produces |
 |---|---|---|---|
-| [`web-prototype`](skills/web-prototype/) | prototype | desktop | Single-page HTML — landings, marketing, hero pages |
-| [`saas-landing`](skills/saas-landing/) | prototype | desktop | Hero / features / pricing / CTA marketing layout |
-| [`dashboard`](skills/dashboard/) | prototype | desktop | Admin / analytics with sidebar + data dense layout |
-| [`pricing-page`](skills/pricing-page/) | prototype | desktop | Standalone pricing + comparison tables |
-| [`docs-page`](skills/docs-page/) | prototype | desktop | 3-column documentation layout |
-| [`blog-post`](skills/blog-post/) | prototype | desktop | Editorial long-form |
-| [`mobile-app`](skills/mobile-app/) | prototype | mobile | iPhone 15 Pro / Pixel framed app screen(s) |
-| [`simple-deck`](skills/simple-deck/) | deck | desktop | Minimal horizontal-swipe deck |
-| [`guizang-ppt`](skills/guizang-ppt/) | deck | **default** for deck | Magazine-style web PPT — bundled from [op7418/guizang-ppt-skill][guizang] |
+| [`web-prototype`](skills/web-prototype/) | desktop | design | Single-page HTML — landings, marketing, hero pages (default for prototype) |
+| [`saas-landing`](skills/saas-landing/) | desktop | marketing | Hero / features / pricing / CTA marketing layout |
+| [`dashboard`](skills/dashboard/) | desktop | operation | Admin / analytics with sidebar + dense data layout |
+| [`pricing-page`](skills/pricing-page/) | desktop | sale | Standalone pricing + comparison tables |
+| [`docs-page`](skills/docs-page/) | desktop | engineering | 3-column documentation layout |
+| [`blog-post`](skills/blog-post/) | desktop | marketing | Editorial long-form |
+| [`mobile-app`](skills/mobile-app/) | mobile | design | iPhone 15 Pro / Pixel framed app screen(s) |
+| [`mobile-onboarding`](skills/mobile-onboarding/) | mobile | design | Multi-screen mobile onboarding flow (splash · value-prop · sign-in) |
+| [`gamified-app`](skills/gamified-app/) | mobile | personal | Three-frame gamified mobile-app prototype |
+| [`email-marketing`](skills/email-marketing/) | desktop | marketing | Brand product-launch HTML email (table-fallback safe) |
+| [`social-carousel`](skills/social-carousel/) | desktop | marketing | 3-card 1080×1080 social carousel |
+| [`magazine-poster`](skills/magazine-poster/) | desktop | marketing | Single-page magazine-style poster |
+| [`motion-frames`](skills/motion-frames/) | desktop | marketing | Motion-design hero with looping CSS animations |
+| [`sprite-animation`](skills/sprite-animation/) | desktop | marketing | Pixel / 8-bit animated explainer slide |
+| [`dating-web`](skills/dating-web/) | desktop | personal | Consumer dating dashboard mockup |
+| [`digital-eguide`](skills/digital-eguide/) | desktop | marketing | Two-spread digital e-guide (cover + lesson) |
+| [`wireframe-sketch`](skills/wireframe-sketch/) | desktop | design | Hand-drawn ideation sketch — for the "show something visible early" pass |
+| [`critique`](skills/critique/) | desktop | design | Five-dimensional self-critique scoresheet (Philosophy · Hierarchy · Detail · Function · Innovation) |
+| [`tweaks`](skills/tweaks/) | desktop | design | AI-emitted tweaks panel — the model surfaces the parameters worth nudging |
 
-### Document / work-product surfaces
+### Deck surfaces (deck mode)
 
-| Skill | Mode | What it produces |
+| Skill | Default for | What it produces |
 |---|---|---|
-| [`pm-spec`](skills/pm-spec/) | template | PM specification doc with TOC + decision log |
-| [`weekly-update`](skills/weekly-update/) | template | Team weekly with progress / blockers / next |
-| [`meeting-notes`](skills/meeting-notes/) | template | Meeting decision log |
-| [`eng-runbook`](skills/eng-runbook/) | template | Incident runbook |
-| [`finance-report`](skills/finance-report/) | template | Exec finance summary |
-| [`hr-onboarding`](skills/hr-onboarding/) | template | Role onboarding plan |
-| [`invoice`](skills/invoice/) | template | Single-page invoice |
-| [`kanban-board`](skills/kanban-board/) | template | Board snapshot |
-| [`team-okrs`](skills/team-okrs/) | template | OKR scoresheet |
+| [`guizang-ppt`](skills/guizang-ppt/) | **default** for deck | Magazine-style web PPT — bundled verbatim from [op7418/guizang-ppt-skill][guizang], original LICENSE preserved |
+| [`simple-deck`](skills/simple-deck/) | — | Minimal horizontal-swipe deck |
+| [`replit-deck`](skills/replit-deck/) | — | Product-walkthrough deck (Replit-style) |
+| [`weekly-update`](skills/weekly-update/) | — | Team weekly cadence as a swipe deck (progress · blockers · next) |
 
-Adding a skill takes one folder. Read [`docs/skills-protocol.md`](docs/skills-protocol.md) for the extended frontmatter, fork an existing skill, restart the daemon, it appears in the picker.
+### Office & operations surfaces (prototype mode, document-flavored scenarios)
+
+| Skill | Scenario | What it produces |
+|---|---|---|
+| [`pm-spec`](skills/pm-spec/) | product | PM specification doc with TOC + decision log |
+| [`team-okrs`](skills/team-okrs/) | product | OKR scoresheet |
+| [`meeting-notes`](skills/meeting-notes/) | operation | Meeting decision log |
+| [`kanban-board`](skills/kanban-board/) | operation | Board snapshot |
+| [`eng-runbook`](skills/eng-runbook/) | engineering | Incident runbook |
+| [`finance-report`](skills/finance-report/) | finance | Exec finance summary |
+| [`invoice`](skills/invoice/) | finance | Single-page invoice |
+| [`hr-onboarding`](skills/hr-onboarding/) | hr | Role onboarding plan |
+
+Adding a skill takes one folder. Read [`docs/skills-protocol.md`](docs/skills-protocol.md) for the extended frontmatter, fork an existing skill, restart the daemon, it appears in the picker. The catalog endpoint is `GET /api/skills`; per-skill seed assembly (template + side-file references) lives at `GET /api/skills/:id/example`.
 
 ## Six load-bearing ideas
 
 ### 1 · We don't ship an agent. Yours is good enough.
 
-The daemon scans your `PATH` for [`claude`](https://docs.anthropic.com/en/docs/claude-code), [`codex`](https://github.com/openai/codex), [`cursor-agent`](https://www.cursor.com/cli), [`gemini`](https://github.com/google-gemini/gemini-cli), [`opencode`](https://opencode.ai/), [`qwen`](https://github.com/QwenLM/qwen-code), and [`copilot`](https://github.com/features/copilot/cli) on startup. Whichever it finds becomes the design engine — driven via stdio, with one adapter per CLI. Inspired by [`multica`](https://github.com/multica-ai/multica) and [`cc-switch`](https://github.com/farion1231/cc-switch). No CLI? `Anthropic API · BYOK` is the same pipeline minus the spawn.
+The daemon scans your `PATH` for [`claude`](https://docs.anthropic.com/en/docs/claude-code), [`codex`](https://github.com/openai/codex), [`cursor-agent`](https://www.cursor.com/cli), [`gemini`](https://github.com/google-gemini/gemini-cli), [`opencode`](https://opencode.ai/), [`qwen`](https://github.com/QwenLM/qwen-code), [`copilot`](https://github.com/features/copilot/cli), `hermes`, `kimi`, and [`pi`](https://github.com/mariozechner/pi-ai) on startup. Whichever ones it finds become candidate design engines — driven over stdio with one adapter per CLI, swappable from the model picker. Inspired by [`multica`](https://github.com/multica-ai/multica) and [`cc-switch`](https://github.com/farion1231/cc-switch). No CLI installed? `POST /api/proxy/stream` is the same pipeline minus the spawn — paste any OpenAI-compatible `baseUrl` + `apiKey` and the daemon forwards SSE chunks back, with loopback / link-local / RFC1918 destinations rejected at the edge.
 
 ### 2 · Skills are files, not plugins.
 
@@ -188,7 +223,7 @@ Following Claude Code's [`SKILL.md` convention](https://docs.anthropic.com/en/do
 
 ### 3 · Design Systems are portable Markdown, not theme JSON.
 
-The 9-section `DESIGN.md` schema from [`VoltAgent/awesome-design-md`][acd2] — color, typography, spacing, layout, components, motion, voice, brand, anti-patterns. Every artifact reads from the active system. Switch system → next render uses the new tokens. The dropdown ships with **Linear, Stripe, Vercel, Airbnb, Tesla, Notion, Apple, Anthropic, Cursor, Supabase, Figma, Resend, Raycast, Lovable, Cohere, Mistral, ElevenLabs, X.AI, Spotify, Webflow, Sanity, PostHog, Sentry, MongoDB, ClickHouse, Cal, Replicate, Clay, Composio…** — 71 in total.
+The 9-section `DESIGN.md` schema from [`VoltAgent/awesome-design-md`][acd2] — color, typography, spacing, layout, components, motion, voice, brand, anti-patterns. Every artifact reads from the active system. Switch system → next render uses the new tokens. The dropdown ships with **Linear, Stripe, Vercel, Airbnb, Tesla, Notion, Apple, Anthropic, Cursor, Supabase, Figma, Resend, Raycast, Lovable, Cohere, Mistral, ElevenLabs, X.AI, Spotify, Webflow, Sanity, PostHog, Sentry, MongoDB, ClickHouse, Cal, Replicate, Clay, Composio, Xiaohongshu…** — 72 in total.
 
 ### 4 · The interactive question form prevents 80% of redirects.
 
@@ -207,8 +242,8 @@ What you compose at send time isn't "system + user". It's:
 ```
 DISCOVERY directives  (turn-1 form, turn-2 brand branch, TodoWrite, 5-dim critique)
   + identity charter   (OFFICIAL_DESIGNER_PROMPT, anti-AI-slop, junior-pass)
-  + active DESIGN.md   (71 systems available)
-  + active SKILL.md    (19 skills available)
+  + active DESIGN.md   (72 systems available)
+  + active SKILL.md    (31 skills available)
   + project metadata   (kind, fidelity, speakerNotes, animations, inspiration ids)
   + skill side files   (auto-injected pre-flight: read assets/template.html + references/*.md)
   + (deck kind, no skill seed) DECK_FRAMEWORK_DIRECTIVE   (nav / counter / scroll / print)
@@ -219,40 +254,45 @@ Every layer is composable. Every layer is a file you can edit. Read [`apps/web/s
 ## Architecture
 
 ```
-┌────────────────────────── browser ─────────────────────────────┐
-│                                                                │
-│   Next.js 16 App Router  (chat · file workspace · iframe preview) │
-│                                                                │
-└──────────────┬───────────────────────────────────┬─────────────┘
-               │ /api/* (rewritten in dev)         │ direct (BYOK)
-               ▼                                   ▼
-   ┌──────────────────────┐              ┌──────────────────────┐
-   │   Local daemon       │              │   Anthropic SDK      │
-   │   (Express + SQLite) │              │   (browser fallback) │
-   │                      │              └──────────────────────┘
-   │   /api/agents        │
-   │   /api/skills        │
-   │   /api/design-systems│
-   │   /api/projects/...  │
-   │   /api/chat (SSE)    │
-   │                      │
-   └─────────┬────────────┘
+┌────────────────────── browser (Next.js 16) ──────────────────────┐
+│  chat · file workspace · iframe preview · settings · imports     │
+└──────────────┬───────────────────────────────────┬───────────────┘
+               │ /api/* (rewritten in dev)          │
+               ▼                                    ▼
+   ┌──────────────────────────────────┐   /api/proxy/stream (SSE)
+   │  Local daemon (Express + SQLite) │   ─→ any OpenAI-compat
+   │                                  │       endpoint (BYOK)
+   │  /api/agents          /api/skills│       w/ SSRF blocking
+   │  /api/design-systems  /api/projects/…
+   │  /api/chat (SSE)      /api/proxy/stream (SSE)
+   │  /api/templates       /api/import/claude-design
+   │  /api/artifacts/save  /api/artifacts/lint
+   │  /api/upload          /api/projects/:id/files…
+   │  /artifacts (static)  /frames (static)
+   │
+   │  optional: sidecar IPC at /tmp/open-design/ipc/<ns>/<app>.sock
+   │  (STATUS · EVAL · SCREENSHOT · CONSOLE · CLICK · SHUTDOWN)
+   └─────────┬────────────────────────┘
              │ spawn(cli, [...], { cwd: .od/projects/<id> })
              ▼
-   ┌────────────────────────────────────────────────────────────────────┐
-   │  claude · codex · cursor-agent · gemini · opencode · qwen · copilot│
-   │  reads SKILL.md + DESIGN.md, writes artifacts to disk              │
-   └────────────────────────────────────────────────────────────────────┘
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  claude · codex · gemini · opencode · cursor-agent · qwen        │
+   │  copilot · hermes (ACP) · kimi (ACP) · pi (RPC)                  │
+   │  reads SKILL.md + DESIGN.md, writes artifacts to disk            │
+   └──────────────────────────────────────────────────────────────────┘
 ```
 
 | Layer | Stack |
 |---|---|
-| Frontend | Next.js 16 App Router + React 18 + TypeScript |
-| Daemon | Node 24 · Express · SSE streaming · `better-sqlite3` for projects/conversations/messages/tabs |
-| Agent transport | `child_process.spawn` with typed-event parsers for Claude Code (`claude-stream-json`) and Copilot CLI (`copilot-stream-json`); line-buffered plain stdout for the rest |
-| Storage | Plain files in `.od/projects/<id>/` + SQLite at `.od/app.sqlite` (gitignored) |
-| Preview | Sandboxed iframe via `srcdoc` + per-skill `<artifact>` parser |
-| Export | HTML (inline assets) · PDF (browser print) · PPTX (skill-defined) · ZIP (archiver) |
+| Frontend | Next.js 16 App Router + React 18 + TypeScript, Vercel-deployable |
+| Daemon | Node 24 · Express · SSE streaming · `better-sqlite3`; tables: `projects` · `conversations` · `messages` · `tabs` · `templates` |
+| Agent transport | `child_process.spawn`; typed-event parsers for `claude-stream-json` (Claude Code), `copilot-stream-json` (Copilot), `json-event-stream` per-CLI parsers (Codex / Gemini / OpenCode / Cursor Agent), `acp-json-rpc` (Hermes / Kimi via Agent Client Protocol), `pi-rpc` (Pi via stdio JSON-RPC), `plain` (Qwen Code) |
+| BYOK proxy | `POST /api/proxy/stream` → OpenAI-compatible `/v1/chat/completions`, SSE pass-through; rejects loopback / link-local / RFC1918 hosts at the daemon edge |
+| Storage | Plain files in `.od/projects/<id>/` + SQLite at `.od/app.sqlite` (gitignored, auto-created). Override the root with `OD_DATA_DIR` for test isolation |
+| Preview | Sandboxed iframe via `srcdoc` + per-skill `<artifact>` parser ([`apps/web/src/artifacts/parser.ts`](apps/web/src/artifacts/parser.ts)) |
+| Export | HTML (inline assets) · PDF (browser print, deck-aware) · PPTX (agent-driven via skill) · ZIP (archiver) · Markdown |
+| Lifecycle | `pnpm tools-dev start \| stop \| run \| status \| logs \| inspect \| check`; ports via `--daemon-port` / `--web-port`, namespaces via `--namespace` |
+| Desktop (optional) | Electron shell — discovers the web URL through sidecar IPC, no port guessing; same `STATUS`/`EVAL`/`SCREENSHOT`/`CONSOLE`/`CLICK`/`SHUTDOWN` channel powers `tools-dev inspect desktop …` for E2E |
 
 ## Quickstart
 
@@ -268,10 +308,12 @@ pnpm tools-dev run web
 
 Environment requirements: Node `~24` and pnpm `10.33.x`. `nvm`/`fnm` are optional helpers only; if you use one, run `nvm install 24 && nvm use 24` or `fnm install 24 && fnm use 24` before `pnpm install`.
 
+For desktop/background startup, fixed-port restarts, and media generation dispatcher checks (`OD_BIN`, `OD_DAEMON_URL`, `apps/daemon/dist/cli.js`), see [`QUICKSTART.md`](QUICKSTART.md).
+
 The first load:
 
 1. Detects which agent CLIs you have on `PATH` and picks one automatically.
-2. Loads 19 skills + 71 design systems.
+2. Loads 31 skills + 72 design systems.
 3. Pops the welcome dialog so you can paste an Anthropic key (only needed for the BYOK fallback path).
 4. **Auto-creates `./.od/`** — the local runtime folder for the SQLite project DB, per-project artifacts, and saved renders. There is no `od init` step; the daemon `mkdir`s everything it needs on boot.
 
@@ -340,31 +382,22 @@ open-design/
 │   ├── sidecar/                   ← generic sidecar runtime primitives
 │   └── platform/                  ← generic process/platform primitives
 │
-├── skills/                        ← 19 SKILL.md skill bundles
+├── skills/                        ← 31 SKILL.md skill bundles (27 prototype + 4 deck)
 │   ├── web-prototype/             ← default for prototype mode
-│   ├── saas-landing/              ← marketing page (hero / features / pricing / CTA)
-│   ├── dashboard/                 ← admin / analytics
-│   ├── pricing-page/              ← standalone pricing + comparison
-│   ├── docs-page/                 ← 3-column documentation
-│   ├── blog-post/                 ← editorial long-form
-│   ├── mobile-app/                ← phone-frame screen(s)
-│   ├── simple-deck/               ← horizontal-swipe minimal
-│   ├── guizang-ppt/               ← bundled magazine-web-ppt (default for deck)
-│   │   ├── SKILL.md
-│   │   ├── assets/template.html   ← seed
-│   │   └── references/{themes,layouts,components,checklist}.md
-│   ├── pm-spec/                   ← PM specification doc
-│   ├── weekly-update/             ← team weekly
-│   ├── meeting-notes/             ← decision log
-│   ├── eng-runbook/               ← incident / runbook
-│   ├── finance-report/            ← exec summary
-│   ├── hr-onboarding/             ← role onboarding
-│   ├── invoice/                   ← single-page invoice
-│   ├── kanban-board/              ← board snapshot
-│   ├── mobile-onboarding/         ← multi-screen mobile flow
-│   └── team-okrs/                 ← OKR scoresheet
+│   ├── saas-landing/  dashboard/  pricing-page/  docs-page/  blog-post/
+│   ├── mobile-app/  mobile-onboarding/  gamified-app/
+│   ├── email-marketing/  social-carousel/  magazine-poster/
+│   ├── motion-frames/  sprite-animation/  digital-eguide/  dating-web/
+│   ├── critique/  tweaks/  wireframe-sketch/
+│   ├── pm-spec/  team-okrs/  meeting-notes/  kanban-board/
+│   ├── eng-runbook/  finance-report/  invoice/  hr-onboarding/
+│   ├── simple-deck/  replit-deck/  weekly-update/   ← deck mode
+│   └── guizang-ppt/               ← bundled magazine-web-ppt (default for deck)
+│       ├── SKILL.md
+│       ├── assets/template.html   ← seed
+│       └── references/{themes,layouts,components,checklist}.md
 │
-├── design-systems/                ← 71 DESIGN.md systems
+├── design-systems/                ← 72 DESIGN.md systems
 │   ├── default/                   ← Neutral Modern (starter)
 │   ├── warm-editorial/            ← Warm Editorial (starter)
 │   ├── linear-app/  vercel/  stripe/  airbnb/  notion/  cursor/  apple/  …
@@ -404,10 +437,10 @@ open-design/
 ## Design Systems
 
 <p align="center">
-  <img src="docs/assets/design-systems-library.png" alt="The 71 design systems library — style guide spread" width="100%" />
+  <img src="docs/assets/design-systems-library.png" alt="The 72 design systems library — style guide spread" width="100%" />
 </p>
 
-71 systems out of the box, each as a single [`DESIGN.md`](design-systems/README.md):
+72 systems out of the box, each as a single [`DESIGN.md`](design-systems/README.md):
 
 <details>
 <summary><b>Full catalog</b> (click to expand)</summary>
@@ -448,6 +481,19 @@ When the user has no brand spec, the agent emits a second form with five curated
 
 Full spec → [`apps/web/src/prompts/directions.ts`](apps/web/src/prompts/directions.ts).
 
+## Beyond chat — what else ships
+
+The chat / artifact loop gets the spotlight, but a handful of less-visible capabilities are already wired and worth knowing before you compare OD to anything else:
+
+- **Claude Design ZIP import.** Drop an export from claude.ai onto the welcome dialog. `POST /api/import/claude-design` extracts it into a real `.od/projects/<id>/`, opens the entry file as a tab, and stages a continue-where-Anthropic-left-off prompt for your local agent. No re-prompting, no "ask the model to re-create what we just had". ([`apps/daemon/src/server.ts`](apps/daemon/src/server.ts) — `/api/import/claude-design`)
+- **OpenAI-compatible BYOK proxy.** `POST /api/proxy/stream` takes `{ baseUrl, apiKey, model, messages }`, normalises the path (`…/v1/chat/completions`), forwards SSE chunks back to the browser, and rejects loopback / link-local / RFC1918 destinations to head off SSRF. Anything that speaks the OpenAI chat schema works — Anthropic-via-OpenAI shim, DeepSeek, Groq, MiMo, OpenRouter, your self-hosted vLLM. MiMo gets `tool_choice: 'none'` automatically because its tool schema misbehaves on free-form generation.
+- **User-saved templates.** Once you like a render, `POST /api/templates` snapshots the HTML + metadata into the SQLite `templates` table. The next project picks it from a "your templates" row in the picker — same surface as the shipped 31, but yours.
+- **Tab persistence.** Every project remembers its open files and active tab in the `tabs` table. Reopen the project tomorrow and the workspace looks exactly the way you left it.
+- **Artifact lint API.** `POST /api/artifacts/lint` runs structural checks on a generated artifact (broken `<artifact>` framing, missing required side files, stale palette tokens) and returns findings the agent can read back into its next turn. The five-dim self-critique uses this to ground its score in real evidence, not vibes.
+- **Sidecar protocol + desktop automation.** Daemon, web, and desktop processes carry typed five-field stamps (`app · mode · namespace · ipc · source`) and expose a JSON-RPC IPC channel at `/tmp/open-design/ipc/<namespace>/<app>.sock`. `tools-dev inspect desktop status \| eval \| screenshot` drives that channel, so headless E2E works against a real Electron shell without bespoke harnesses ([`packages/sidecar-proto/`](packages/sidecar-proto/), [`apps/desktop/src/main/`](apps/desktop/src/main/)).
+- **Windows-friendly spawning.** Every adapter that would otherwise blow `CreateProcess`'s ~32 KB argv limit on long composed prompts (Codex, Gemini, OpenCode, Cursor Agent, Qwen, Pi) feeds the prompt over stdin instead. Claude Code and Copilot keep `-p`; the daemon falls back to a temp prompt-file when even that overflows.
+- **Per-namespace runtime data.** `OD_DATA_DIR` and `--namespace` give you fully isolated `.od/`-style trees, so Playwright, beta channels, and your real projects never share a SQLite file.
+
 ## Anti-AI-slop machinery
 
 The whole machinery below is the [`huashu-design`](https://github.com/alchaincyf/huashu-design) playbook, ported into OD's prompt-stack and made enforceable per-skill via the side-file pre-flight. Read [`apps/web/src/prompts/discovery.ts`](apps/web/src/prompts/discovery.ts) for the live wording:
@@ -467,20 +513,23 @@ The whole machinery below is the [`huashu-design`](https://github.com/alchaincyf
 | Form factor | Web (claude.ai) | Desktop (Electron) | **Web app + local daemon** |
 | Deployable on Vercel | ❌ | ❌ | **✅** |
 | Agent runtime | Bundled (Opus 4.7) | Bundled ([`pi-ai`][piai]) | **Delegated to user's existing CLI** |
-| Skills | Proprietary | 12 custom TS modules + `SKILL.md` | **19 file-based [`SKILL.md`][skill] bundles, droppable** |
-| Design system | Proprietary | `DESIGN.md` (v0.2 roadmap) | **`DESIGN.md` × 71 systems shipped** |
-| Provider flexibility | Anthropic only | 7+ via [`pi-ai`][piai] | **Whatever your agent supports** |
+| Skills | Proprietary | 12 custom TS modules + `SKILL.md` | **31 file-based [`SKILL.md`][skill] bundles, droppable** |
+| Design system | Proprietary | `DESIGN.md` (v0.2 roadmap) | **`DESIGN.md` × 72 systems shipped** |
+| Provider flexibility | Anthropic only | 7+ via [`pi-ai`][piai] | **10 CLI adapters + OpenAI-compatible BYOK proxy** |
 | Init question form | ❌ | ❌ | **✅ Hard rule, turn 1** |
 | Direction picker | ❌ | ❌ | **✅ 5 deterministic directions** |
 | Live todo progress + tool stream | ❌ | ✅ | **✅** (UX pattern from open-codesign) |
 | Sandboxed iframe preview | ❌ | ✅ | **✅** (pattern from open-codesign) |
+| Claude Design ZIP import | n/a | ❌ | **✅ `POST /api/import/claude-design` — keep editing where Anthropic left off** |
 | Comment-mode surgical edits | ❌ | ✅ | 🚧 roadmap (lift from open-codesign) |
-| AI-emitted tweaks panel | ❌ | ✅ | 🚧 roadmap (lift from open-codesign) |
-| Filesystem-grade workspace | ❌ | partial (Electron sandbox) | **✅ Real cwd, real tools, persisted SQLite** |
+| AI-emitted tweaks panel | ❌ | ✅ | 🟡 partial — [`tweaks` skill](skills/tweaks/) ships, dedicated chat-side panel UX still on roadmap |
+| Filesystem-grade workspace | ❌ | partial (Electron sandbox) | **✅ Real cwd, real tools, persisted SQLite (projects · conversations · messages · tabs · templates)** |
 | 5-dim self-critique | ❌ | ❌ | **✅ Pre-emit gate** |
-| Export formats | Limited | HTML / PDF / PPTX / ZIP / Markdown | **HTML / PDF / PPTX / ZIP / Markdown** |
-| PPT skill reuse | N/A | Built-in | **[`guizang-ppt-skill`][guizang] drops in** |
-| Minimum billing | Pro / Max / Team | BYOK | **BYOK** |
+| Artifact lint | ❌ | ❌ | **✅ `POST /api/artifacts/lint` — findings fed back to the agent** |
+| Sidecar IPC + headless desktop | ❌ | ❌ | **✅ Stamped processes + `tools-dev inspect desktop status \| eval \| screenshot`** |
+| Export formats | Limited | HTML / PDF / PPTX / ZIP / Markdown | **HTML / PDF / PPTX (agent-driven) / ZIP / Markdown** |
+| PPT skill reuse | N/A | Built-in | **[`guizang-ppt-skill`][guizang] drops in (default for deck mode)** |
+| Minimum billing | Pro / Max / Team | BYOK | **BYOK — paste any OpenAI-compatible `baseUrl`** |
 
 [cd]: https://x.com/claudeai/status/2045156267690213649
 [ocod]: https://github.com/OpenCoworkAI/open-codesign
@@ -491,20 +540,23 @@ The whole machinery below is the [`huashu-design`](https://github.com/alchaincyf
 
 ## Supported coding agents
 
-Auto-detected from `PATH` on daemon boot. No config required.
+Auto-detected from `PATH` on daemon boot. No config required. Streaming dispatch lives in [`apps/daemon/src/agents.ts`](apps/daemon/src/agents.ts) (`AGENT_DEFS`); per-CLI parsers live alongside it. Models are populated either by probing `<bin> --list-models` / `<bin> models` / ACP handshake, or from a curated fallback list when the CLI doesn't expose a list.
 
-| Agent | Bin | Streaming | Notes |
+| Agent | Bin | Stream format | Argv shape (composed prompt path) |
 |---|---|---|---|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | `--output-format stream-json` (typed events) | First-class — best fidelity |
-| [Codex CLI](https://github.com/openai/codex) | `codex` | line-buffered | `codex exec <prompt>` |
-| [Cursor Agent](https://www.cursor.com/cli) | `cursor-agent` | line-buffered | `cursor-agent -p` |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `gemini` | line-buffered | `gemini -p` |
-| [OpenCode](https://opencode.ai/) | `opencode` | line-buffered | `opencode run` |
-| [Qwen Code](https://github.com/QwenLM/qwen-code) | `qwen` | line-buffered | `qwen -p` |
-| [GitHub Copilot CLI](https://github.com/features/copilot/cli) | `copilot` | `--output-format json` (typed events) | `copilot -p <prompt> --allow-all-tools --output-format json` |
-| Anthropic API · BYOK | n/a | SSE direct | Browser fallback when no CLI is on PATH |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | `claude-stream-json` (typed events) | `claude -p <prompt> --output-format stream-json --verbose [--include-partial-messages] [--add-dir …] --permission-mode bypassPermissions` |
+| [Codex CLI](https://github.com/openai/codex) | `codex` | `json-event-stream` + `codex` parser | `codex exec --json --skip-git-repo-check --full-auto [-C cwd] [--model …] [-c model_reasoning_effort=…] -` (prompt on stdin) |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `gemini` | `json-event-stream` + `gemini` parser | `gemini --output-format stream-json --skip-trust --yolo [--model …] -` (prompt on stdin) |
+| [OpenCode](https://opencode.ai/) | `opencode` | `json-event-stream` + `opencode` parser | `opencode run --format json --dangerously-skip-permissions [--model …] -` (prompt on stdin) |
+| [Cursor Agent](https://www.cursor.com/cli) | `cursor-agent` | `json-event-stream` + `cursor-agent` parser | `cursor-agent --print --output-format stream-json --stream-partial-output --force --trust [--workspace cwd] [--model …] -` (prompt on stdin) |
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | `qwen` | `plain` (raw stdout chunks) | `qwen --yolo [--model …] -` (prompt on stdin) |
+| [GitHub Copilot CLI](https://github.com/features/copilot/cli) | `copilot` | `copilot-stream-json` (typed events) | `copilot -p <prompt> --allow-all-tools --output-format json [--model …] [--add-dir …]` |
+| [Hermes](https://github.com/eqlabs/hermes) | `hermes` | `acp-json-rpc` (Agent Client Protocol) | `hermes acp --accept-hooks` |
+| Kimi CLI | `kimi` | `acp-json-rpc` | `kimi acp` |
+| [Pi](https://github.com/mariozechner/pi-ai) | `pi` | `pi-rpc` (stdio JSON-RPC) | `pi --mode rpc --no-session [--model …] [--thinking …]` (prompt sent as RPC `prompt` command) |
+| **OpenAI-compatible BYOK** | n/a | SSE pass-through | `POST /api/proxy/stream` → `<baseUrl>/v1/chat/completions`; SSRF-guarded against loopback / link-local / RFC1918 |
 
-Adding a new CLI is one entry in [`apps/daemon/src/agents.ts`](apps/daemon/src/agents.ts). Streaming format is one of `claude-stream-json` (typed events) or `plain` (raw text).
+Adding a new CLI is one entry in [`apps/daemon/src/agents.ts`](apps/daemon/src/agents.ts). Streaming format is one of `claude-stream-json`, `copilot-stream-json`, `json-event-stream` (with a per-CLI `eventParser`), `acp-json-rpc`, `pi-rpc`, or `plain`.
 
 ## References & lineage
 
@@ -525,15 +577,20 @@ Long-form provenance write-up — what we take from each, what we deliberately d
 
 ## Roadmap
 
-- [x] Daemon + agent detection + skill registry + design-system catalog
-- [x] Web app + chat + question form + todo progress + sandboxed preview
-- [x] 19 skills + 71 design systems + 5 visual directions + 5 device frames
+- [x] Daemon + agent detection (10 CLI adapters) + skill registry + design-system catalog
+- [x] Web app + chat + question form + 5-direction picker + todo progress + sandboxed preview
+- [x] 31 skills + 72 design systems + 5 visual directions + 5 device frames
 - [x] SQLite-backed projects · conversations · messages · tabs · templates
+- [x] OpenAI-compatible BYOK proxy (`/api/proxy/stream`) with SSRF guard
+- [x] Claude Design ZIP import (`/api/import/claude-design`)
+- [x] Sidecar protocol + Electron desktop with IPC automation (STATUS / EVAL / SCREENSHOT / CONSOLE / CLICK / SHUTDOWN)
+- [x] Artifact lint API + 5-dim self-critique pre-emit gate
 - [ ] Comment-mode surgical edits (click element → instruction → patch) — pattern from [`open-codesign`][ocod]
-- [ ] AI-emitted tweaks panel (model surfaces the parameters worth tweaking) — pattern from [`open-codesign`][ocod]
+- [ ] AI-emitted tweaks panel UX — building block ([`tweaks` skill](skills/tweaks/)) ships; chat-integrated panel still pending
 - [ ] Vercel + tunnel deployment recipe (Topology B)
 - [ ] One-command `npx od init` to scaffold a project with `DESIGN.md`
-- [ ] Skill marketplace (`od skills install <github-repo>`)
+- [ ] Skill marketplace (`od skills install <github-repo>`) and `od skill add | list | remove | test` CLI surface (drafted in [`docs/skills-protocol.md`](docs/skills-protocol.md), implementation pending)
+- [ ] Packaged Electron build out of `apps/packaged/`
 
 Phased delivery → [`docs/roadmap.md`](docs/roadmap.md).
 
@@ -558,6 +615,36 @@ Issues, PRs, new skills, and new design systems are all welcome. The highest-lev
 - **Wire up a new coding-agent CLI** — one entry in [`apps/daemon/src/agents.ts`](apps/daemon/src/agents.ts).
 
 Full walkthrough, bar-for-merging, code style, and what we don't accept → [`CONTRIBUTING.md`](CONTRIBUTING.md) ([简体中文](CONTRIBUTING.zh-CN.md)).
+
+## Contributors
+
+Thanks to everyone who has helped move Open Design forward — through code, docs, feedback, new skills, new design systems, or even a sharp issue. Every real contribution counts, and the wall below is the easiest way to say so out loud.
+
+<a href="https://github.com/nexu-io/open-design/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=nexu-io/open-design&cache_bust=2026-04-30" alt="Open Design contributors" />
+</a>
+
+If you've shipped your first PR — welcome. The [`good-first-issue`](https://github.com/nexu-io/open-design/labels/good-first-issue) label is the entry point.
+
+## Repository activity
+
+<picture>
+  <img alt="Open Design — repository metrics" src="docs/assets/github-metrics.svg" />
+</picture>
+
+The SVG above is regenerated daily by [`.github/workflows/metrics.yml`](.github/workflows/metrics.yml) using [`lowlighter/metrics`](https://github.com/lowlighter/metrics). Trigger a manual refresh from the **Actions** tab if you want it sooner; for richer plugins (traffic, follow-up time), add a `METRICS_TOKEN` repository secret with a fine-grained PAT.
+
+## Star History
+
+<a href="https://star-history.com/#nexu-io/open-design&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&theme=dark&cache_bust=2026-04-30" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-04-30" />
+    <img alt="Open Design star history" src="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-04-30" />
+  </picture>
+</a>
+
+If the curve bends up, that's the signal we look for. ★ this repo to push it.
 
 ## License
 

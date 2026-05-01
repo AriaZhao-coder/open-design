@@ -26,8 +26,20 @@ import { renderDesignSystemPreview } from './design-system-preview.js';
 import { renderDesignSystemShowcase } from './design-system-showcase.js';
 import { createChatRunService } from './runs.js';
 import { importClaudeDesignZip } from './claude-design-import.js';
+import { listPromptTemplates, readPromptTemplate } from './prompt-templates.js';
 import { buildDocumentPreview } from './document-preview.js';
 import { lintArtifact, renderFindingsForAgent } from './lint-artifact.js';
+import { generateMedia } from './media.js';
+import {
+  AUDIO_DURATIONS_SEC,
+  AUDIO_MODELS_BY_KIND,
+  IMAGE_MODELS,
+  MEDIA_ASPECTS,
+  MEDIA_PROVIDERS,
+  VIDEO_LENGTHS_SEC,
+  VIDEO_MODELS,
+} from './media-models.js';
+import { readMaskedConfig, writeConfig } from './media-config.js';
 import {
   decodeMultipartFilename,
   deleteProjectFile,
@@ -147,6 +159,7 @@ const DAEMON_RESOURCE_ROOT = resolveDaemonResourceRoot();
 // when this project shipped with Vite; the daemon serves whatever the
 // frontend toolchain emits, no further config needed.
 const STATIC_DIR = path.join(PROJECT_ROOT, 'apps', 'web', 'out');
+const OD_BIN = path.join(PROJECT_ROOT, 'apps', 'daemon', 'dist', 'cli.js');
 const SKILLS_DIR = resolveDaemonResourceDir(
   DAEMON_RESOURCE_ROOT,
   'skills',
@@ -161,6 +174,11 @@ const FRAMES_DIR = resolveDaemonResourceDir(
   DAEMON_RESOURCE_ROOT,
   'frames',
   path.join(PROJECT_ROOT, 'assets', 'frames'),
+);
+const PROMPT_TEMPLATES_DIR = resolveDaemonResourceDir(
+  DAEMON_RESOURCE_ROOT,
+  'prompt-templates',
+  path.join(PROJECT_ROOT, 'prompt-templates'),
 );
 const RUNTIME_DATA_DIR = process.env.OD_DATA_DIR
   ? path.resolve(PROJECT_ROOT, process.env.OD_DATA_DIR)
@@ -336,6 +354,52 @@ function sendMulterError(res, err) {
   }
 
   return sendApiError(res, 500, 'INTERNAL_ERROR', 'upload failed');
+}
+
+const mediaTasks = new Map();
+const TASK_TTL_AFTER_DONE_MS = 10 * 60 * 1000;
+
+function createMediaTask(taskId, projectId, info = {}) {
+  const task = {
+    id: taskId,
+    projectId,
+    status: 'queued',
+    surface: info.surface,
+    model: info.model,
+    progress: [],
+    file: null,
+    error: null,
+    startedAt: Date.now(),
+    endedAt: null,
+    waiters: new Set(),
+  };
+  mediaTasks.set(taskId, task);
+  return task;
+}
+
+function appendTaskProgress(task, line) {
+  task.progress.push(line);
+  notifyTaskWaiters(task);
+}
+
+function notifyTaskWaiters(task) {
+  const wakers = Array.from(task.waiters);
+  for (const w of wakers) {
+    try {
+      w();
+    } catch {
+      // Never let one bad waiter block the rest.
+    }
+  }
+  if (
+    (task.status === 'done' || task.status === 'failed') &&
+    !task._gcScheduled
+  ) {
+    task._gcScheduled = true;
+    setTimeout(() => {
+      if (task.waiters.size === 0) mediaTasks.delete(task.id);
+    }, TASK_TTL_AFTER_DONE_MS).unref?.();
+  }
 }
 
 export function createSseResponse(res, { keepAliveIntervalMs = SSE_KEEPALIVE_INTERVAL_MS } = {}) {
@@ -829,6 +893,31 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
     }
   });
 
+  app.get('/api/prompt-templates', async (_req, res) => {
+    try {
+      const templates = await listPromptTemplates(PROMPT_TEMPLATES_DIR);
+      res.json({
+        promptTemplates: templates.map(({ prompt: _prompt, ...rest }) => rest),
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get('/api/prompt-templates/:surface/:id', async (req, res) => {
+    try {
+      const tpl = await readPromptTemplate(
+        PROMPT_TEMPLATES_DIR,
+        req.params.surface,
+        req.params.id,
+      );
+      if (!tpl) return res.status(404).json({ error: 'prompt template not found' });
+      res.json({ promptTemplate: tpl });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   // Showcase HTML for a design system — palette swatches, typography
   // samples, sample components, and the full DESIGN.md rendered as prose.
   // Built at request time from the on-disk DESIGN.md so any update to the
@@ -1203,6 +1292,199 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
     }
   });
 
+  app.get('/api/media/models', (_req, res) => {
+    res.json({
+      providers: MEDIA_PROVIDERS,
+      image: IMAGE_MODELS,
+      video: VIDEO_MODELS,
+      audio: AUDIO_MODELS_BY_KIND,
+      aspects: MEDIA_ASPECTS,
+      videoLengthsSec: VIDEO_LENGTHS_SEC,
+      audioDurationsSec: AUDIO_DURATIONS_SEC,
+    });
+  });
+
+  app.get('/api/media/config', async (_req, res) => {
+    try {
+      const cfg = await readMaskedConfig(PROJECT_ROOT);
+      res.json(cfg);
+    } catch (err) {
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
+    }
+  });
+
+  app.put('/api/media/config', async (req, res) => {
+    try {
+      const cfg = await writeConfig(PROJECT_ROOT, req.body);
+      res.json(cfg);
+    } catch (err) {
+      const status = typeof err?.status === 'number' ? err.status : 400;
+      res.status(status).json({ error: String(err && err.message ? err.message : err) });
+    }
+  });
+
+  app.post('/api/projects/:id/media/generate', async (req, res) => {
+    if (!isLocalSameOrigin(req, port)) {
+      return res.status(403).json({
+        error: 'cross-origin request rejected: media generation is restricted to the local UI / CLI',
+      });
+    }
+
+    try {
+      const projectId = req.params.id;
+      const project = getProject(db, projectId);
+      if (!project) return res.status(404).json({ error: 'project not found' });
+
+      const taskId = randomUUID();
+      const task = createMediaTask(taskId, projectId, {
+        surface: req.body?.surface,
+        model: req.body?.model,
+      });
+      console.error(
+        `[task ${taskId.slice(0, 8)}] queued model=${req.body?.model} ` +
+          `surface=${req.body?.surface} ` +
+          `image=${req.body?.image ? 'yes' : 'no'} ` +
+          `compositionDir=${req.body?.compositionDir ? 'yes' : 'no'}`,
+      );
+
+      task.status = 'running';
+      generateMedia({
+        projectRoot: PROJECT_ROOT,
+        projectsRoot: PROJECTS_DIR,
+        projectId,
+        surface: req.body?.surface,
+        model: req.body?.model,
+        prompt: req.body?.prompt,
+        output: req.body?.output,
+        aspect: req.body?.aspect,
+        length: typeof req.body?.length === 'number' ? req.body.length : undefined,
+        duration:
+          typeof req.body?.duration === 'number' ? req.body.duration : undefined,
+        voice: req.body?.voice,
+        audioKind: req.body?.audioKind,
+        compositionDir: req.body?.compositionDir,
+        image: req.body?.image,
+        onProgress: (line) => appendTaskProgress(task, line),
+      })
+        .then((meta) => {
+          task.status = 'done';
+          task.file = meta;
+          task.endedAt = Date.now();
+          notifyTaskWaiters(task);
+          console.error(
+            `[task ${taskId.slice(0, 8)}] done size=${meta?.size} mime=${meta?.mime} ` +
+              `elapsed=${Math.round((task.endedAt - task.startedAt) / 1000)}s`,
+          );
+        })
+        .catch((err) => {
+          task.status = 'failed';
+          task.error = {
+            message: String(err && err.message ? err.message : err),
+            status: typeof err?.status === 'number' ? err.status : 400,
+            code: err?.code,
+          };
+          task.endedAt = Date.now();
+          notifyTaskWaiters(task);
+          console.error(
+            `[task ${taskId.slice(0, 8)}] failed status=${task.error.status} ` +
+              `message=${(task.error.message || '').slice(0, 240)}`,
+          );
+        });
+
+      res.status(202).json({
+        taskId,
+        status: task.status,
+        startedAt: task.startedAt,
+      });
+    } catch (err) {
+      const status = typeof err?.status === 'number' ? err.status : 400;
+      const code = err?.code;
+      const body = { error: String(err && err.message ? err.message : err) };
+      if (code) body.code = code;
+      res.status(status).json(body);
+    }
+  });
+
+  app.post('/api/media/tasks/:id/wait', async (req, res) => {
+    if (!isLocalSameOrigin(req, port)) {
+      return res.status(403).json({ error: 'cross-origin request rejected' });
+    }
+    const taskId = req.params.id;
+    const task = mediaTasks.get(taskId);
+    if (!task) return res.status(404).json({ error: 'task not found' });
+
+    const since = Number.isFinite(req.body?.since) ? Number(req.body.since) : 0;
+    const requestedTimeout = Number.isFinite(req.body?.timeoutMs)
+      ? Number(req.body.timeoutMs)
+      : 25_000;
+    const timeoutMs = Math.min(Math.max(requestedTimeout, 0), 25_000);
+
+    const respond = () => {
+      if (res.writableEnded) return;
+      const snapshot = {
+        taskId,
+        status: task.status,
+        startedAt: task.startedAt,
+        endedAt: task.endedAt,
+        progress: task.progress.slice(since),
+        nextSince: task.progress.length,
+      };
+      if (task.status === 'done') snapshot.file = task.file;
+      if (task.status === 'failed') snapshot.error = task.error;
+      res.json(snapshot);
+    };
+
+    if (
+      task.status === 'done' ||
+      task.status === 'failed' ||
+      task.progress.length > since
+    ) {
+      return respond();
+    }
+
+    let resolved = false;
+    const wake = () => {
+      if (resolved) return;
+      resolved = true;
+      task.waiters.delete(wake);
+      clearTimeout(timer);
+      respond();
+    };
+    task.waiters.add(wake);
+    const timer = setTimeout(wake, timeoutMs);
+    res.on('close', wake);
+  });
+
+  app.get('/api/projects/:id/media/tasks', (req, res) => {
+    if (!isLocalSameOrigin(req, port)) {
+      return res.status(403).json({ error: 'cross-origin request rejected' });
+    }
+    const projectId = req.params.id;
+    const includeDone =
+      req.query.includeDone === '1' || req.query.includeDone === 'true';
+    const tasks = [];
+    for (const t of mediaTasks.values()) {
+      if (t.projectId !== projectId) continue;
+      const isTerminal = t.status === 'done' || t.status === 'failed';
+      if (isTerminal && !includeDone) continue;
+      tasks.push({
+        taskId: t.id,
+        status: t.status,
+        startedAt: t.startedAt,
+        endedAt: t.endedAt,
+        elapsed: Math.round(((t.endedAt ?? Date.now()) - t.startedAt) / 1000),
+        surface: t.surface,
+        model: t.model,
+        progress: t.progress.slice(-3),
+        progressCount: t.progress.length,
+        ...(t.status === 'done' ? { file: t.file } : {}),
+        ...(t.status === 'failed' ? { error: t.error } : {}),
+      });
+    }
+    tasks.sort((a, b) => b.startedAt - a.startedAt);
+    res.json({ tasks });
+  });
+
   // Multi-file upload that the chat composer uses for paste/drop/picker.
   // Files land flat in the project folder; the response carries the same
   // metadata as listFiles so the client can stage them as ChatAttachments
@@ -1512,6 +1794,16 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
     // case this branch covers.
     const useShell =
       process.platform === 'win32' && CMD_BAT_RE.test(resolvedBin);
+    const odMediaEnv = {
+      OD_BIN,
+      OD_DAEMON_URL: `http://127.0.0.1:${port}`,
+      ...(typeof projectId === 'string' && projectId && cwd
+        ? {
+            OD_PROJECT_ID: projectId,
+            OD_PROJECT_DIR: cwd,
+          }
+        : {}),
+    };
 
     if (run.cancelRequested || design.runs.isTerminal(run.status)) return;
 
@@ -1537,7 +1829,7 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
       // which causes `spawn ENAMETOOLONG` for any non-trivial prompt.
       const stdinMode = def.promptViaStdin || def.streamFormat === 'acp-json-rpc' || needsFilePrompt ? 'pipe' : 'ignore';
       child = spawn(resolvedBin, args, {
-        env: { ...process.env },
+        env: { ...process.env, ...odMediaEnv },
         stdio: [stdinMode, 'pipe', 'pipe'],
         cwd: cwd || undefined,
         shell: useShell,
@@ -1663,9 +1955,149 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
     design.runs.start(run, () => startChatRun(req.body || {}, run));
   });
 
-  // ---- API Proxy (SSE) for OpenAI-compatible endpoints ---------------------
+  // ---- API Proxy (SSE) for API-compatible endpoints ------------------------
   // Browser → daemon → external API. Avoids CORS issues with third-party
-  // providers (MiMo, DeepSeek, Groq, etc.).
+  // providers. This keeps BYOK setup zero-config for local users at the cost of
+  // one local streaming hop through the daemon.
+
+  const redactAuthTokens = (text) => text.replace(/Bearer [A-Za-z0-9_\-.+/=]+/g, 'Bearer [REDACTED]');
+
+  const validateExternalApiBaseUrl = (baseUrl) => {
+    let parsed;
+    try {
+      parsed = new URL(baseUrl.replace(/\/+$/, ''));
+    } catch {
+      return { error: 'Invalid baseUrl' };
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { error: 'Only http/https allowed' };
+    }
+    if (
+      ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname) ||
+      parsed.hostname.startsWith('169.254.') ||
+      parsed.hostname.startsWith('10.') ||
+      /^192\.168\./.test(parsed.hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(parsed.hostname)
+    ) {
+      return { error: 'Internal IPs blocked', forbidden: true };
+    }
+    return { parsed };
+  };
+
+  app.post('/api/proxy/anthropic/stream', async (req, res) => {
+    /** @type {Partial<ProxyStreamRequest>} */
+    const proxyBody = req.body || {};
+    const { baseUrl, apiKey, model, systemPrompt, messages } = proxyBody;
+    if (!baseUrl || !apiKey || !model) {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'baseUrl, apiKey, and model are required');
+    }
+
+    const validated = validateExternalApiBaseUrl(baseUrl);
+    if (validated.error) {
+      return sendApiError(res, validated.forbidden ? 403 : 400, validated.forbidden ? 'FORBIDDEN' : 'BAD_REQUEST', validated.error);
+    }
+
+    const clean = baseUrl.replace(/\/+$/, '');
+    const url = /\/v\d+$/.test(clean) ? `${clean}/messages` : `${clean}/v1/messages`;
+    console.log(`[proxy:anthropic] ${req.method} ${validated.parsed.hostname} model=${model}`);
+
+    const payload = {
+      model,
+      max_tokens: 8192,
+      stream: true,
+      system: systemPrompt || '',
+      messages: Array.isArray(messages)
+        ? messages
+          .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+          .map((m) => ({ role: m.role, content: m.content }))
+        : [],
+    };
+
+    const sse = createSseResponse(res);
+    const send = sse.send;
+
+    let upstream;
+    try {
+      upstream = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (fetchErr) {
+      send('error', createSseErrorPayload('UPSTREAM_UNAVAILABLE', `fetch failed: ${fetchErr.message}`, { retryable: true }));
+      return sse.end();
+    }
+
+    if (!upstream.ok) {
+      const errText = await upstream.text().catch(() => '');
+      const safeErr = redactAuthTokens(errText.slice(0, 500));
+      console.error(`[proxy:anthropic] upstream ${upstream.status}: ${safeErr.slice(0, 200)}`);
+      send('error', createSseErrorPayload('UPSTREAM_UNAVAILABLE', `upstream ${upstream.status}: ${safeErr}`, { retryable: upstream.status >= 500 }));
+      return sse.end();
+    }
+
+    send('start', { model });
+
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      let match;
+      while ((match = buf.match(/\r?\n\r?\n/)) && match.index != null) {
+        const frame = buf.slice(0, match.index);
+        buf = buf.slice(match.index + match[0].length);
+        const raw = frame
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).trimStart())
+          .join('\n')
+          .trim();
+        if (!raw) continue;
+        if (raw === '[DONE]') {
+          send('end', {});
+          return sse.end();
+        }
+        try {
+          const chunk = JSON.parse(raw);
+          if (chunk.type === 'content_block_delta') {
+            const text = chunk.delta?.text ?? chunk.delta?.partial_json ?? '';
+            if (text) send('delta', { text });
+          } else if (chunk.type === 'message_delta') {
+            const text = chunk.delta?.text ?? '';
+            if (text) send('delta', { text });
+          } else if (chunk.type === 'message_stop') {
+            send('end', {});
+            return sse.end();
+          } else if (chunk.type === 'error') {
+            send('error', createSseErrorPayload('UPSTREAM_UNAVAILABLE', chunk.error?.message || 'upstream error', { retryable: false }));
+            return sse.end();
+          } else if (process.env.NODE_ENV === 'development') {
+            // Anthropic-compatible providers sometimes add vendor-specific
+            // events. Unknown non-text events are ignored but surfaced in dev
+            // logs to make provider compatibility issues easier to diagnose.
+            console.warn(`[proxy:anthropic] skipped upstream event type=${chunk.type || 'unknown'}`);
+          }
+        } catch {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[proxy:anthropic] skipped malformed upstream SSE frame');
+          }
+        }
+      }
+    }
+
+    send('end', {});
+    sse.end();
+  });
 
   app.post('/api/proxy/stream', async (req, res) => {
     /** @type {Partial<ProxyStreamRequest>} */
@@ -1676,23 +2108,9 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
     }
 
     // Validate baseUrl — only allow http/https and block internal IPs (SSRF).
-    let parsed;
-    try {
-      parsed = new URL(baseUrl.replace(/\/+$/, ''));
-    } catch {
-      return sendApiError(res, 400, 'BAD_REQUEST', 'Invalid baseUrl');
-    }
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return sendApiError(res, 400, 'BAD_REQUEST', 'Only http/https allowed');
-    }
-    if (
-      ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname) ||
-      parsed.hostname.startsWith('169.254.') ||
-      parsed.hostname.startsWith('10.') ||
-      /^192\.168\./.test(parsed.hostname) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(parsed.hostname)
-    ) {
-      return sendApiError(res, 400, 'FORBIDDEN', 'Internal IPs blocked');
+    const validated = validateExternalApiBaseUrl(baseUrl);
+    if (validated.error) {
+      return sendApiError(res, validated.forbidden ? 403 : 400, validated.forbidden ? 'FORBIDDEN' : 'BAD_REQUEST', validated.error);
     }
 
     // Build the upstream URL. If the base URL already ends with /v1 (or
@@ -1708,7 +2126,7 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
 
     // Force MiMo to behave as a pure text generator (no tool calls)
     const isMiMo = model.toLowerCase().startsWith('mimo');
-    console.log(`[proxy] ${req.method} ${parsed.hostname} model=${model} miMo=${isMiMo}`);
+    console.log(`[proxy] ${req.method} ${validated.parsed.hostname} model=${model} miMo=${isMiMo}`);
 
     const payload = {
       model,
@@ -1742,7 +2160,7 @@ export async function startServer({ port = 7456, returnServer = false } = {}) {
 
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => '');
-      const safeErr = errText.slice(0, 500).replace(/Bearer [A-Za-z0-9_\-\.]+/g, 'Bearer [REDACTED]');
+      const safeErr = redactAuthTokens(errText.slice(0, 500));
       console.error(`[proxy] upstream ${upstream.status}: ${safeErr.slice(0, 200)}`);
       send('error', createSseErrorPayload('UPSTREAM_UNAVAILABLE', `upstream ${upstream.status}: ${safeErr}`, { retryable: upstream.status >= 500 }));
       return sse.end();
@@ -1845,6 +2263,24 @@ function escapeHtml(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function isLocalSameOrigin(req, port) {
+  const allowedHosts = new Set([
+    `127.0.0.1:${port}`,
+    `localhost:${port}`,
+    `[::1]:${port}`,
+  ]);
+  const allowedOrigins = new Set([
+    `http://127.0.0.1:${port}`,
+    `http://localhost:${port}`,
+    `http://[::1]:${port}`,
+  ]);
+  const host = String(req.headers.host || '');
+  if (!allowedHosts.has(host)) return false;
+  const origin = req.headers.origin;
+  if (origin == null || origin === '') return true;
+  return allowedOrigins.has(String(origin));
 }
 
 function sanitizeSlug(s) {
