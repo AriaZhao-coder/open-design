@@ -130,17 +130,22 @@ jobs:
       - name: Check i18n structure
         run: pnpm i18n:check
 
-      - name: Test
+      - name: Core package tests
         run: |
-          pnpm --filter @open-design/e2e test
           pnpm --filter @open-design/contracts test
           pnpm --filter @open-design/platform test
           pnpm --filter @open-design/sidecar test
           pnpm --filter @open-design/sidecar-proto test
+
+      - name: App workspace tests
+        run: |
           pnpm --filter @open-design/daemon test
           pnpm --filter @open-design/web test
           pnpm --filter @open-design/tools-dev test
           pnpm --filter @open-design/tools-pack test
+
+      - name: E2E vitest
+        run: pnpm --filter @open-design/e2e test
 
       - name: Playwright critical
         run: |
