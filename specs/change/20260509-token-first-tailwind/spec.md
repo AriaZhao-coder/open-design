@@ -192,7 +192,7 @@ flowchart TD
 Guard 需要覆盖三类规则，并为每个例外记录文件范围、匹配模式和理由。
 
 1. 默认 Tailwind palette class 检查：在 app UI 文件中拒绝 `text-red-500`、`bg-white`、`border-zinc-200`、`from-orange-500`、`ring-blue-400` 等默认 palette utilities。允许的颜色 utility 来自 `token.md` 中 `@theme` 暴露的项目 token。
-2. 硬编码 UI color 检查：在 app UI chrome 和组件样式中拒绝未登记的 `#hex`、`rgb()`、`rgba()`、`hsl()`、`hsla()` 和命名色。命中后优先迁移到 Tailwind token class 或 CSS variable；重复出现的任意色需要新增命名 token。
+2. 硬编码 UI color 检查：在 app UI chrome 和组件样式中拒绝未登记的 `#hex`、`rgb()`、`rgba()`、`hsl()`、`hsla()` 和真实命名色。CSS-wide/special keywords `transparent`、`currentColor` / `currentcolor`、`inherit`、`initial`、`unset` 和 `revert` 表达透明、继承或 reset 语义，guard 应显式豁免或按属性语义处理；命中真实未登记颜色后优先迁移到 Tailwind token class 或 CSS variable；重复出现的任意色需要新增命名 token。
 3. 显式 allowlist 检查：允许品牌资产、SVG 插画、用户 accent 输入、canvas/sketch 用户色、文件/inspect 用户内容颜色转换、external document/iframe/popup runtime HTML、测试 fixture。allowlist 需要尽量窄，按文件、函数或 pattern 标注原因，避免路径级豁免覆盖普通 UI chrome。
 
 ## Plan
@@ -236,6 +236,7 @@ Each migration PR should be reviewable on its own, keep business logic stable, a
 - [ ] Step 3: 添加样式 guardrails
   - [ ] Substep 3.1 Implement: 在 `scripts/guard.ts` 中添加 app UI code 默认 Tailwind palette classes 检查。
   - [ ] Substep 3.2 Implement: 添加硬编码 UI color 检查，覆盖 `#hex`、`rgb()`、`rgba()`、`hsl()`、`hsla()` 和命名色。
+  - [ ] Substep 3.2a Implement: 在命名色检查中豁免 CSS-wide/special keywords，例如 `transparent`、`currentColor` / `currentcolor`、`inherit`、`initial`、`unset` 和 `revert`，避免 ghost button、SVG current-color 和继承/reset 状态被误判为未登记颜色。
   - [ ] Substep 3.3 Implement: 添加显式 allowlist 机制，覆盖 brand assets、SVG illustrations、user accent input、canvas/sketch user colors、user-authored file/inspect colors、external runtime documents 和 tests/fixtures。
   - [ ] Substep 3.4 Implement: 需要抽取 helper 时，在 `apps/web/tests/` 下添加聚焦测试。
   - [ ] Substep 3.5 Verify: 运行 `pnpm guard`。
