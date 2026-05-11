@@ -28,5 +28,8 @@ the Worker route, for example:
 https://telemetry.open-design.ai/api/langfuse
 ```
 
+Opening `/api/langfuse` or `/health` in a browser returns relay health JSON.
+Telemetry ingestion still uses POST to `/api/langfuse`.
+
 Release workflows bake only this public relay URL into packaged config. The
 Langfuse secret key stays in Cloudflare Worker secrets.

@@ -78,7 +78,25 @@ function resolveLangfuseUrl(env: Env): string {
   return `${(env.LANGFUSE_BASE_URL?.trim() || DEFAULT_LANGFUSE_BASE_URL).replace(/\/+$/, '')}/api/public/ingestion`;
 }
 
+function hasLangfuseCredentials(env: Env): boolean {
+  return Boolean(env.LANGFUSE_PUBLIC_KEY?.trim() && env.LANGFUSE_SECRET_KEY?.trim());
+}
+
+function isHealthPath(request: Request): boolean {
+  const { pathname } = new URL(request.url);
+  return pathname === '/api/langfuse' || pathname === '/health';
+}
+
 async function handleRequest(request: Request, env: Env): Promise<Response> {
+  if (request.method === 'GET' && isHealthPath(request)) {
+    return jsonResponse(200, {
+      ok: true,
+      service: 'open-design-telemetry-relay',
+      configured: hasLangfuseCredentials(env),
+      upstream: resolveLangfuseUrl(env),
+    });
+  }
+
   if (request.method !== 'POST') {
     return jsonResponse(405, { error: 'method not allowed' });
   }

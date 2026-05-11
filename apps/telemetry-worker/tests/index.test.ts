@@ -17,6 +17,33 @@ function makeRequest(body: unknown): Request {
 }
 
 describe('telemetry worker', () => {
+  it('returns a health response for browser checks', async () => {
+    const response = await worker.fetch(
+      new Request('https://telemetry.open-design.ai/api/langfuse'),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      service: 'open-design-telemetry-relay',
+      configured: true,
+      upstream: 'https://us.cloud.langfuse.com/api/public/ingestion',
+    });
+  });
+
+  it('reports unconfigured health without exposing secrets', async () => {
+    const response = await worker.fetch(new Request('https://telemetry.open-design.ai/health'), {});
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      service: 'open-design-telemetry-relay',
+      configured: false,
+      upstream: 'https://us.cloud.langfuse.com/api/public/ingestion',
+    });
+  });
+
   it('forwards valid Langfuse ingestion batches with server-side auth', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ successes: [{ id: 'evt-1' }], errors: [] }), {
