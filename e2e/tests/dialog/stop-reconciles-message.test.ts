@@ -24,7 +24,7 @@ import { describe, expect, test } from 'vitest';
 import { createFakeAgentRuntimes } from '@/fake-agents';
 import { requestJson } from '@/vitest/http';
 import { listMessages, saveMessage } from '@/vitest/messages';
-import { cancelRun, startRun, waitForRunStatus } from '@/vitest/runs';
+import { cancelRun, startRun, waitForRunTerminal } from '@/vitest/runs';
 import { createSmokeSuite } from '@/vitest/smoke-suite';
 
 type ProjectResponse = {
@@ -109,10 +109,11 @@ describe('dialog stop reconciles message endedAt', () => {
       await cancelRun(webUrl, run.runId);
 
       // Wait until the daemon reports the run as terminal so the reconciliation
-      // path has had a chance to run.
-      const finalRun = await waitForRunStatus(webUrl, run.runId, 'canceled', { timeoutMs: 10_000 })
-        .catch(() => waitForRunStatus(webUrl, run.runId, 'succeeded', { timeoutMs: 1_000 }));
-      expect(['canceled', 'succeeded', 'failed']).toContain(finalRun.status);
+      // path has had a chance to run. The exact terminal status (canceled vs
+      // failed vs succeeded) doesn't matter here — the assertion is about the
+      // resulting messages row, not which terminal the run landed in.
+      const finalRun = await waitForRunTerminal(webUrl, run.runId, { timeoutMs: 10_000 });
+      expect(TERMINAL_STATUSES).toContain(finalRun.status);
       const reconcileDeadline = Date.now();
 
       // Give the post-terminal reconciliation a brief moment to flush.
@@ -137,6 +138,8 @@ describe('dialog stop reconciles message endedAt', () => {
     });
   }, 180_000);
 });
+
+const TERMINAL_STATUSES = ['succeeded', 'failed', 'canceled'] as const;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
