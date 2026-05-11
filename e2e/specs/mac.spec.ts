@@ -755,6 +755,116 @@ desktopMacDescribe('mac desktop settings smoke', () => {
     expect(clickCapture.href).toBe('/api/live-artifacts/artifact-123/preview?projectId=project-456');
   }, 45_000);
 
+  test('keeps the desktop workspace stable when the artifact Open link is clicked', async () => {
+    await seedDesktopConfig(desktop, {
+      mode: 'api',
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      apiProtocol: 'openai',
+      apiProviderBaseUrl: 'https://api.openai.com/v1',
+      agentId: null,
+      skillId: null,
+      designSystemId: null,
+      onboardingCompleted: true,
+      mediaProviders: {},
+      agentModels: {},
+      theme: 'system',
+    }, 'model');
+
+    const seeded = await desktop.eval<{ projectId: string }>(`
+      (async () => {
+        const projectId = 'desktop-open-smoke-' + Date.now().toString(36);
+        const projectResp = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: projectId,
+            name: 'Desktop artifact open smoke',
+          }),
+        });
+        if (!projectResp.ok) {
+          throw new Error('failed to create project: ' + projectResp.status);
+        }
+
+        const fileResp = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'desktop-open.html',
+            content: '<!doctype html><html><body><main><h1>Desktop Open Smoke</h1></main></body></html>',
+            artifactManifest: {
+              version: 1,
+              kind: 'html',
+              title: 'Desktop Open Smoke',
+              entry: 'desktop-open.html',
+              renderer: 'html',
+              exports: ['html'],
+            },
+          }),
+        });
+        if (!fileResp.ok) {
+          throw new Error('failed to seed project file: ' + fileResp.status);
+        }
+
+        window.__odDesktopOpenHref = null;
+        window.__odDesktopOpenClickCount = 0;
+        if (!window.__odDesktopOpenCaptureInstalled) {
+          document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element ? event.target.closest('a') : null;
+            if (!(target instanceof HTMLAnchorElement)) return;
+            if (target.textContent?.trim() !== 'Open') return;
+            window.__odDesktopOpenHref = target.getAttribute('href');
+            window.__odDesktopOpenClickCount += 1;
+            event.preventDefault();
+          }, true);
+          window.__odDesktopOpenCaptureInstalled = true;
+        }
+
+        window.location.assign('/projects/' + encodeURIComponent(projectId) + '/files/desktop-open.html');
+        return { projectId };
+      })()
+    `);
+
+    await waitFor(async () => {
+      const snapshot = await readDesktopArtifactOpenSnapshot(desktop);
+      expect(snapshot.fileWorkspaceVisible).toBe(true);
+      expect(snapshot.selectedTab).toBe('desktop-open.html');
+      expect(snapshot.artifactPreviewVisible).toBe(true);
+      expect(snapshot.openHref).toBe('/api/projects/' + seeded.projectId + '/raw/desktop-open.html?v=0&r=0');
+      expect(snapshot.openTarget).toBe('_blank');
+      expect(snapshot.openRel).toContain('noreferrer');
+    });
+
+    const clicked = await desktop.eval<boolean>(`
+      (() => {
+        const link = Array.from(document.querySelectorAll('a'))
+          .find((node) => node.textContent?.trim() === 'Open');
+        if (!(link instanceof HTMLAnchorElement)) return false;
+        link.click();
+        return true;
+      })()
+    `);
+    expect(clicked).toBe(true);
+
+    await waitFor(async () => {
+      const snapshot = await readDesktopArtifactOpenSnapshot(desktop);
+      expect(snapshot.fileWorkspaceVisible).toBe(true);
+      expect(snapshot.selectedTab).toBe('desktop-open.html');
+      expect(snapshot.artifactPreviewVisible).toBe(true);
+      expect(snapshot.openHref).toBe('/api/projects/' + seeded.projectId + '/raw/desktop-open.html?v=0&r=0');
+    });
+
+    const clickCapture = await desktop.eval<{ count: number; href: string | null }>(`
+      (() => ({
+        count: typeof window.__odDesktopOpenClickCount === 'number' ? window.__odDesktopOpenClickCount : 0,
+        href: typeof window.__odDesktopOpenHref === 'string' ? window.__odDesktopOpenHref : null,
+      }))()
+    `);
+    expect(clickCapture.count).toBeGreaterThan(0);
+    expect(clickCapture.href).toBe('/api/projects/' + seeded.projectId + '/raw/desktop-open.html?v=0&r=0');
+  }, 45_000);
+
   test('routes the Orbit gate CTA to the Connectors section inside the desktop shell', async () => {
     await seedDesktopConfig(desktop, {
       mode: 'api',
@@ -1006,6 +1116,15 @@ type DesktopAppearanceSectionSnapshot = {
   lightVisible: boolean;
   sectionTitle: string | null;
   systemVisible: boolean;
+};
+
+type DesktopArtifactOpenSnapshot = {
+  artifactPreviewVisible: boolean;
+  fileWorkspaceVisible: boolean;
+  openHref: string | null;
+  openRel: string | null;
+  openTarget: string | null;
+  selectedTab: string | null;
 };
 
 async function seedDesktopConfig(
@@ -1267,6 +1386,28 @@ async function readDesktopAppearanceSectionSnapshot(
         lightVisible: labels.includes('Light'),
         sectionTitle,
         systemVisible: labels.includes('System'),
+      };
+    })()
+  `);
+}
+
+async function readDesktopArtifactOpenSnapshot(
+  desktop: DesktopHarness,
+): Promise<DesktopArtifactOpenSnapshot> {
+  return await desktop.eval<DesktopArtifactOpenSnapshot>(`
+    (() => {
+      const openLink = Array.from(document.querySelectorAll('a'))
+        .find((node) => node.textContent?.trim() === 'Open');
+      const activeTab = Array.from(document.querySelectorAll('[role="tab"][aria-selected="true"]'))
+        .map((node) => node.textContent?.trim())
+        .find((value) => typeof value === 'string') ?? null;
+      return {
+        artifactPreviewVisible: Boolean(document.querySelector('[data-testid="artifact-preview-frame"]')),
+        fileWorkspaceVisible: Boolean(document.querySelector('[data-testid="file-workspace"]')),
+        openHref: openLink?.getAttribute('href') ?? null,
+        openRel: openLink?.getAttribute('rel') ?? null,
+        openTarget: openLink?.getAttribute('target') ?? null,
+        selectedTab: activeTab,
       };
     })()
   `);
