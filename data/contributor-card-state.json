@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-14T13:06:06.458Z",
+  "generatedAt": "2026-05-14T13:06:48.298Z",
   "contributors": {
     "huyhoangnhh98": {
       "lastAnnouncedTier": "spark",
@@ -368,8 +368,9 @@
     },
     "heylakatos": {
       "lastAnnouncedTier": "signal",
-      "lastKnownScore": 28,
-      "lastCheckedAt": "2026-05-14T06:27:51.910Z",
+      "lastKnownScore": 134,
+      "lastCheckedAt": "2026-05-14T13:06:48.298Z",
+      "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-14T06:27:51.910Z"
     },
     "fl0rencess720": {
