@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-17T09:25:12.552Z",
+  "generatedAt": "2026-05-17T10:31:08.600Z",
   "contributors": {
     "huyhoangnhh98": {
       "lastAnnouncedTier": "spark",
@@ -574,8 +574,8 @@
     },
     "ethanguo-coder": {
       "lastAnnouncedTier": "signal",
-      "lastKnownScore": 43,
-      "lastCheckedAt": "2026-05-17T07:03:17.066Z",
+      "lastKnownScore": 60,
+      "lastCheckedAt": "2026-05-17T10:31:08.600Z",
       "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-15T08:15:30.514Z"
     },
