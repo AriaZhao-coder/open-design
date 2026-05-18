@@ -1512,6 +1512,17 @@ async function auditDesignSystemPackage(
   await requireContent('README.md', 600, 'thin_readme', 'README.md is too thin to explain the package, source evidence, generated files, and reuse workflow.', requireMarkdownHeading);
   await requireContent('SKILL.md', 500, 'thin_skill', 'SKILL.md is too thin to guide future agents on how to use this design system.', validateSkillInstructions);
   await requireContent('colors_and_type.css', 500, 'thin_token_css', 'colors_and_type.css is too thin to carry reusable color, typography, spacing, radius, and state tokens.', validateTokenCss);
+  if (fileSet.has('SKILL.md')) {
+    const skillText = await readAuditText(projectPath, 'SKILL.md');
+    if (skillText !== undefined && !skillHasAgentFrontmatter(skillText)) {
+      addIssue(
+        'warning',
+        'missing_skill_frontmatter',
+        'SKILL.md should include Claude-style YAML frontmatter with name, description, and user-invocable so future agents can discover and invoke the design system package.',
+        'SKILL.md',
+      );
+    }
+  }
   for (const docPath of ['DESIGN.md', 'README.md', 'SKILL.md', 'ui_kits/app/README.md']) {
     if (!fileSet.has(docPath)) continue;
     const text = await readAuditText(projectPath, docPath);
@@ -1818,6 +1829,15 @@ function validateSkillInstructions(text: string): string | undefined {
     return undefined;
   }
   return 'Expected a top-level markdown heading or skill frontmatter with usage instructions.';
+}
+
+function skillHasAgentFrontmatter(text: string): boolean {
+  const match = /^---\n([\s\S]*?)\n---/u.exec(text);
+  if (!match) return false;
+  const frontmatter = match[1] ?? '';
+  return /^name:\s+\S+/mu.test(frontmatter)
+    && /^description:\s+\S+/mu.test(frontmatter)
+    && /^user-invocable:\s+(true|false)/imu.test(frontmatter);
 }
 
 function validateDesignRules(text: string): string | undefined {

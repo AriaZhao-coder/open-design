@@ -59,13 +59,13 @@ This package captures a source-backed Open Design design system for a desktop AI
 Start with DESIGN.md, compare the preview cards, then inspect the applied UI kit. Reuse assets and fonts directly when building product surfaces.
 `;
 
-const AUDIT_SKILL = `# Cherry Studio Design System
+const MARKDOWN_ONLY_AUDIT_SKILL = `# Cherry Studio Design System
 
 Use this skill when creating Open Design artifacts that should match the Cherry Studio desktop AI chat workspace.
 
 ## Workflow
 
-1. Read DESIGN.md first and treat it as the source of truth.
+1. Read README.md, then DESIGN.md, and treat them as the source of truth.
 2. Load colors_and_type.css for concrete tokens.
 3. Inspect preview/ for focused review cards before inventing new styling.
 4. Use ui_kits/app/ as the applied interface pattern for chat, assistant navigation, model controls, and composer surfaces.
@@ -74,6 +74,22 @@ Use this skill when creating Open Design artifacts that should match the Cherry 
 ## Output Rules
 
 Keep layouts compact, app-like, and productivity-focused. Use real component states, avoid generic landing pages, and keep typography and spacing grounded in the captured evidence.
+`;
+
+const AUDIT_SKILL = `---
+name: cherry-studio-design
+description: Use this skill when creating Open Design artifacts that should match the Cherry Studio desktop AI chat workspace.
+user-invocable: true
+---
+
+Read README.md, DESIGN.md, colors_and_type.css, the preview cards, preserved assets and fonts, source examples, and the modular UI kit before generating any new interface.
+
+**What's inside:**
+- Source-backed visual foundations, token CSS, assets, fonts, preview cards, source examples, and UI kit components.
+- DESIGN.md as canonical rules and README.md as the package manifest.
+
+**How to use:**
+Load colors_and_type.css, inspect preview/, reuse ui_kits/app/, and preserve compact app-like layouts grounded in the captured evidence instead of inventing a marketing page.
 `;
 
 const REFERENCE_AUDIT_SKILL = `---
@@ -705,6 +721,48 @@ describe('connectors tool CLI', () => {
         code: 'protocol_derived_title',
         path: 'README.md',
         message: expect.stringContaining('URL protocol text'),
+      }),
+    ]));
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('warns when SKILL.md is missing agent-discoverable frontmatter', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-package-audit-skill-frontmatter-'));
+    process.chdir(tmpDir);
+    await mkdir(path.join(tmpDir, 'preview'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
+    await writeFile(path.join(tmpDir, 'README.md'), AUDIT_README);
+    await writeFile(path.join(tmpDir, 'SKILL.md'), MARKDOWN_ONLY_AUDIT_SKILL);
+    await writeFile(path.join(tmpDir, 'colors_and_type.css'), AUDIT_TOKENS_CSS);
+    for (const fileName of [
+      'colors-primary.html',
+      'colors-theme-light.html',
+      'typography-specimens.html',
+      'spacing-tokens.html',
+      'components-buttons.html',
+      'brand-assets.html',
+    ]) {
+      await writeFile(path.join(tmpDir, 'preview', fileName), auditHtml(fileName));
+    }
+    await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditUiKitIndex());
+    await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), '# UI kit\n');
+    for (const componentName of AUDIT_COMPONENT_FILES) {
+      await writeFile(
+        path.join(tmpDir, 'ui_kits/app/components', componentName),
+        auditUiKitComponent(componentName),
+      );
+    }
+
+    const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(stdoutOutput.join('')).warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'missing_skill_frontmatter',
+        path: 'SKILL.md',
+        message: expect.stringContaining('YAML frontmatter'),
       }),
     ]));
 

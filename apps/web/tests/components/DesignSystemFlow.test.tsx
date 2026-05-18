@@ -293,6 +293,12 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
+        pendingPrompt: expect.stringContaining('Include YAML frontmatter with `name`, `description`, and `user-invocable`'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
         pendingPrompt: expect.stringContaining('name or model high-signal source components from the evidence'),
       }),
     );
@@ -372,6 +378,11 @@ describe('DesignSystemCreationFlow', () => {
       project.id,
       'context/source-context.md',
       expect.stringContaining('colors_and_type.css must bind those files with @font-face'),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('SKILL.md should include YAML frontmatter'),
     );
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,
