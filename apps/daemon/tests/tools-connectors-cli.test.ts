@@ -95,7 +95,7 @@ Read README.md, colors_and_type.css, the preview cards, preserved fonts, and the
 Copy assets, load the token CSS, inspect the preview cards, then compose new HTML or app UI from the modular kit. Keep generated surfaces compact, workspace-oriented, and grounded in the captured evidence instead of inventing a marketing page.
 `;
 
-const AUDIT_TOKENS_CSS = `:root {
+const UNBOUND_FONT_AUDIT_TOKENS_CSS = `:root {
   --cherry-bg: #f7f8fa;
   --cherry-surface: #ffffff;
   --cherry-surface-muted: #f1f3f5;
@@ -115,6 +115,15 @@ const AUDIT_TOKENS_CSS = `:root {
   --cherry-space-4: 16px;
 }
 `;
+
+const AUDIT_TOKENS_CSS = `@font-face {
+  font-family: 'Ubuntu';
+  src: url('./fonts/ubuntu/Ubuntu-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+${UNBOUND_FONT_AUDIT_TOKENS_CSS}`;
 
 const AUDIT_COMPONENT_FILES = [
   'App.jsx',
@@ -1150,6 +1159,61 @@ describe('connectors tool CLI', () => {
     expect(JSON.parse(stdoutOutput.join('')).errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'insufficient_preserved_assets', path: 'assets/' }),
       expect.objectContaining({ code: 'insufficient_preserved_fonts', path: 'fonts/' }),
+    ]));
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails a design-system package audit when preserved fonts are not bound in token CSS', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-package-audit-font-binding-'));
+    process.chdir(tmpDir);
+    await mkdir(path.join(tmpDir, 'preview'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'fonts/ubuntu'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/fonts/ubuntu'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
+    await writeFile(path.join(tmpDir, 'README.md'), AUDIT_README);
+    await writeFile(path.join(tmpDir, 'SKILL.md'), AUDIT_SKILL);
+    await writeFile(path.join(tmpDir, 'colors_and_type.css'), UNBOUND_FONT_AUDIT_TOKENS_CSS);
+    for (const fileName of [
+      'colors-primary.html',
+      'colors-theme-light.html',
+      'typography-specimens.html',
+      'spacing-tokens.html',
+      'components-buttons.html',
+      'brand-assets.html',
+    ]) {
+      await writeFile(path.join(tmpDir, 'preview', fileName), auditHtml(fileName));
+    }
+    await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditUiKitIndex());
+    await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), '# UI kit\n');
+    for (const componentName of AUDIT_COMPONENT_FILES) {
+      await writeFile(
+        path.join(tmpDir, 'ui_kits/app/components', componentName),
+        auditUiKitComponent(componentName),
+      );
+    }
+    await writeFile(path.join(tmpDir, 'fonts/ubuntu/Ubuntu-Regular.ttf'), Buffer.from('font-data'));
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/fonts/ubuntu/Ubuntu-Regular.ttf'), Buffer.from('font-data'));
+    await writeFile(path.join(tmpDir, 'context/source-context.md'), '# Design System Source Context\n\n## Local Code\n\n- /tmp/cherry\n');
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry.md'), [
+      '# Local Design Evidence: cherry',
+      '',
+      'Snapshot files written: 1',
+      '',
+      '### Fonts',
+      '- fonts/ubuntu/Ubuntu-Regular.ttf -> `context/local-code/cherry/files/fonts/ubuntu/Ubuntu-Regular.ttf` (binary asset)',
+    ].join('\n'));
+
+    const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(stdoutOutput.join('')).errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'font_tokens_not_bound',
+        path: 'colors_and_type.css',
+        message: expect.stringContaining('does not bind them'),
+      }),
     ]));
 
     await rm(tmpDir, { recursive: true, force: true });

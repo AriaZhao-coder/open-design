@@ -275,6 +275,12 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
+        pendingPrompt: expect.stringContaining('bind them in `colors_and_type.css` with `@font-face`'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
         pendingPrompt: expect.stringContaining('Preserve high-signal source component examples'),
       }),
     );
@@ -361,6 +367,11 @@ describe('DesignSystemCreationFlow', () => {
       project.id,
       'context/source-context.md',
       expect.stringContaining('must describe the final focused preview cards'),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('colors_and_type.css must bind those files with @font-face'),
     );
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,

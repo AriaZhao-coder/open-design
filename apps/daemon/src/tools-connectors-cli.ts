@@ -1745,6 +1745,15 @@ async function auditDesignSystemPackage(
     if (preservedFontFiles.length === 0) {
       addIssue('error', 'missing_preserved_fonts', 'Source evidence includes font files; preserve selected fonts under fonts/ and bind them in colors_and_type.css.', 'fonts/');
     }
+    const tokenCss = await readAuditText(projectPath, 'colors_and_type.css');
+    if (preservedFontFiles.length > 0 && tokenCss !== undefined && !tokenCssBindsPreservedFonts(tokenCss, preservedFontFiles)) {
+      addIssue(
+        'error',
+        'font_tokens_not_bound',
+        'Source font files are preserved under fonts/, but colors_and_type.css does not bind them with @font-face, @import, or a url(...) reference to the preserved font files.',
+        'colors_and_type.css',
+      );
+    }
     if (evidenceFontFiles.length >= 3 && preservedFontFiles.length < 3) {
       addIssue(
         'error',
@@ -1847,6 +1856,21 @@ function validateHtmlDocument(text: string): string | undefined {
   if (!/<style[\s>]/iu.test(text)) return 'Expected embedded CSS styles for review fidelity.';
   if (!/<(main|section|article|aside|header|div)\b/iu.test(text)) return 'Expected real layout markup, not only metadata.';
   return undefined;
+}
+
+function tokenCssBindsPreservedFonts(text: string, preservedFontFiles: string[]): boolean {
+  const fontAssets = preservedFontFiles.filter((filePath) => /\.(ttf|otf|woff2?)$/iu.test(filePath));
+  if (fontAssets.length === 0) {
+    return /@import\s+[^;]*fonts\//iu.test(text) || /url\([^)]*fonts\//iu.test(text);
+  }
+  const hasFontRule = /@font-face/iu.test(text) || /@import\s+[^;]*fonts\//iu.test(text);
+  if (!hasFontRule) return false;
+  if (/@import\s+[^;]*fonts\/[^;]*\.css/iu.test(text)) return true;
+  return fontAssets.some((filePath) => {
+    const baseName = escapeRegExp(path.basename(filePath));
+    return new RegExp(`url\\([^)]*(?:fonts\\/[^)]*)?${baseName}`, 'iu').test(text)
+      || new RegExp(`@import\\s+[^;]*(?:fonts\\/[^;]*)?${baseName}`, 'iu').test(text);
+  }) || /url\([^)]*fonts\/[^)]*\.(ttf|otf|woff2?)/iu.test(text);
 }
 
 function evidenceSnapshotFiles(files: string[], evidenceText: string, pattern: RegExp): string[] {
