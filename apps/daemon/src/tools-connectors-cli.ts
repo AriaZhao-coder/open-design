@@ -59,6 +59,9 @@ const MAX_GITHUB_CONTEXT_FILES = 80;
 const MAX_CONTEXT_FILE_BYTES = 120_000;
 const MAX_MARKDOWN_EXCERPT_CHARS = 2_400;
 const MAX_CONNECTOR_DIRECTORY_SCAN_DIRS = 48;
+const GITHUB_CLONE_TIMEOUT_MS = 120_000;
+const GH_AUTH_TIMEOUT_MS = 10_000;
+const MAX_PROCESS_OUTPUT_CHARS = 8_000;
 
 interface ParsedGitHubRepo {
   owner: string;
@@ -79,10 +82,25 @@ interface GithubDesignEvidence {
   ref?: string;
   resolvedRef?: string;
   method: 'connector' | 'git-clone-fallback';
+  localCloneMethod?: 'git' | 'gh-cli';
   repositoryMetadata?: JsonObject;
   readme?: { path: string; content: string };
   treePaths: string[];
   files: GithubSnapshotFile[];
+  warnings: string[];
+}
+
+interface ProcessRunResult {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+  code?: number | null;
+  timedOut?: boolean;
+  error?: string;
+}
+
+interface LocalGitHubCloneResult {
+  method: 'git' | 'gh-cli';
   warnings: string[];
 }
 
@@ -639,14 +657,8 @@ async function collectGithubEvidenceWithGitClone(
 ): Promise<GithubDesignEvidence> {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-github-context-'));
   const cloneDir = path.join(tmpDir, 'repo');
-  const repoUrl = /^https?:\/\//iu.test(repo.source) || repo.source.startsWith('git@')
-    ? repo.source
-    : `https://github.com/${repo.owner}/${repo.repo}.git`;
   try {
-    const args = ['clone', '--depth=1', '--single-branch'];
-    if (options.ref) args.push('--branch', options.ref);
-    args.push(repoUrl, cloneDir);
-    await execGit(args);
+    const clone = await cloneGithubRepository(repo, cloneDir, options.ref);
     const paths = await listLocalRepoFiles(cloneDir);
     const selectedPaths = selectDesignFiles(paths, options.maxFiles);
     const files: GithubSnapshotFile[] = [];
@@ -672,12 +684,14 @@ async function collectGithubEvidenceWithGitClone(
       ...(options.ref === undefined ? {} : { ref: options.ref }),
       ...(options.ref === undefined ? {} : { resolvedRef: options.ref }),
       method: 'git-clone-fallback',
+      localCloneMethod: clone.method,
       ...(readme === undefined ? {} : { readme }),
       treePaths: paths,
       files,
       warnings: [
         ...(options.warnings ?? []),
-        `Connector intake could not produce enough local snapshots; used shallow git clone fallback. Reason: ${options.reason}`,
+        ...clone.warnings,
+        `Connector intake could not produce enough local snapshots; used shallow local clone fallback. Reason: ${options.reason}`,
       ],
     };
   } finally {
@@ -699,20 +713,134 @@ function connectorEvidenceNeedsCloneFallback(evidence: GithubDesignEvidence): bo
   return evidence.files.length === 0;
 }
 
-async function execGit(args: string[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn('git', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+async function cloneGithubRepository(
+  repo: ParsedGitHubRepo,
+  cloneDir: string,
+  ref: string | undefined,
+): Promise<LocalGitHubCloneResult> {
+  const repoUrl = /^https?:\/\//iu.test(repo.source) || repo.source.startsWith('git@')
+    ? repo.source
+    : `https://github.com/${repo.owner}/${repo.repo}.git`;
+  const gitArgs = ['clone', '--depth=1', '--single-branch'];
+  if (ref) gitArgs.push('--branch', ref);
+  gitArgs.push(repoUrl, cloneDir);
+
+  const gitResult = await runProcessBuffered('git', gitArgs, {
+    timeoutMs: GITHUB_CLONE_TIMEOUT_MS,
+    env: { GIT_TERMINAL_PROMPT: '0' },
+  });
+  if (gitResult.ok) return { method: 'git', warnings: [] };
+
+  await rm(cloneDir, { recursive: true, force: true });
+  const gitFailure = summarizeProcessFailure('git clone', gitResult);
+  const gh = await checkGitHubCliAuthentication();
+  if (!gh.installed) {
+    throw new Error(
+      `${gitFailure}; GitHub CLI is not installed. Install GitHub CLI or configure local git credentials, then rerun github-design-context.`,
+    );
+  }
+  if (!gh.authenticated) {
+    throw new Error(
+      `${gitFailure}; GitHub CLI is installed but not authenticated. Run \`gh auth login --web\`, grant this repository, then rerun github-design-context.`,
+    );
+  }
+
+  const ghArgs = ['repo', 'clone', `${repo.owner}/${repo.repo}`, cloneDir, '--', '--depth=1', '--single-branch'];
+  if (ref) ghArgs.push('--branch', ref);
+  const ghResult = await runProcessBuffered('gh', ghArgs, {
+    timeoutMs: GITHUB_CLONE_TIMEOUT_MS,
+    env: { GIT_TERMINAL_PROMPT: '0' },
+  });
+  if (ghResult.ok) {
+    return {
+      method: 'gh-cli',
+      warnings: [
+        `Plain git clone could not read the repository, so the intake used authenticated GitHub CLI clone instead. ${gitFailure}`,
+      ],
+    };
+  }
+
+  throw new Error(`${gitFailure}; ${summarizeProcessFailure('gh repo clone', ghResult)}`);
+}
+
+async function checkGitHubCliAuthentication(): Promise<{ installed: boolean; authenticated: boolean }> {
+  const version = await runProcessBuffered('gh', ['--version'], { timeoutMs: GH_AUTH_TIMEOUT_MS });
+  if (!version.ok) return { installed: false, authenticated: false };
+  const auth = await runProcessBuffered('gh', ['auth', 'status', '--hostname', 'github.com'], {
+    timeoutMs: GH_AUTH_TIMEOUT_MS,
+    env: { GIT_TERMINAL_PROMPT: '0' },
+  });
+  return { installed: true, authenticated: auth.ok };
+}
+
+async function runProcessBuffered(
+  command: string,
+  args: string[],
+  options: { timeoutMs: number; env?: Record<string, string> },
+): Promise<ProcessRunResult> {
+  return await new Promise<ProcessRunResult>((resolve) => {
+    let settled = false;
+    let timedOut = false;
+    let stdout = '';
     let stderr = '';
-    child.stderr.on('data', (chunk) => { stderr += String(chunk); });
-    child.on('error', reject);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const settle = (result: ProcessRunResult) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      resolve({
+        ...result,
+        stdout: redactSensitiveProcessOutput(result.stdout),
+        stderr: redactSensitiveProcessOutput(result.stderr),
+        ...(result.error === undefined ? {} : { error: redactSensitiveProcessOutput(result.error) }),
+      });
+    };
+    const child = spawn(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...(options.env ?? {}) },
+    });
+    timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        if (!settled) child.kill('SIGKILL');
+      }, 2_000).unref();
+    }, options.timeoutMs);
+    timeout.unref();
+    child.stdout.on('data', (chunk) => {
+      stdout = appendProcessOutput(stdout, chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr = appendProcessOutput(stderr, chunk);
+    });
+    child.on('error', (error) => {
+      settle({ ok: false, stdout, stderr, error: error.message });
+    });
     child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(stderr.trim() || `git exited with code ${code}`));
-      }
+      settle({ ok: code === 0 && !timedOut, stdout, stderr, code, ...(timedOut ? { timedOut } : {}) });
     });
   });
+}
+
+function appendProcessOutput(current: string, chunk: unknown): string {
+  return `${current}${String(chunk)}`.slice(-MAX_PROCESS_OUTPUT_CHARS);
+}
+
+function summarizeProcessFailure(label: string, result: ProcessRunResult): string {
+  const details = [
+    result.timedOut ? `timed out after ${Math.round(GITHUB_CLONE_TIMEOUT_MS / 1000)}s` : '',
+    result.error,
+    result.stderr.trim(),
+    result.stdout.trim(),
+    result.code === undefined || result.code === 0 ? '' : `exit code ${result.code}`,
+  ].filter(Boolean);
+  return `${label} failed${details.length ? `: ${details.join(' | ')}` : ''}`;
+}
+
+function redactSensitiveProcessOutput(value: string): string {
+  return value
+    .replace(/https?:\/\/[^@\s]+@github\.com/giu, 'https://***@github.com')
+    .replace(/(gh[opsu]_[A-Za-z0-9_]+)/gu, '***');
 }
 
 async function listLocalRepoFiles(root: string): Promise<string[]> {
@@ -759,6 +887,7 @@ function renderGithubDesignEvidenceMarkdown(evidence: GithubDesignEvidence): str
     '',
     `Source: ${evidence.repo.source}`,
     `Read method: ${evidence.method}`,
+    ...(evidence.localCloneMethod ? [`Local clone method: ${evidence.localCloneMethod === 'gh-cli' ? 'GitHub CLI authenticated clone' : 'git clone'}`] : []),
     `Ref: ${evidence.resolvedRef ?? evidence.ref ?? 'default branch'}`,
     `Repository paths discovered: ${evidence.treePaths.length}`,
     `Snapshot files written: ${evidence.files.length}`,
@@ -767,7 +896,7 @@ function renderGithubDesignEvidenceMarkdown(evidence: GithubDesignEvidence): str
     '',
     evidence.method === 'connector'
       ? '- GitHub connector was used through `od tools connectors`.'
-      : '- Connector intake could not complete; a shallow local git clone fallback was used.',
+      : '- Connector intake could not complete; a shallow local clone fallback was used.',
   ];
   if (evidence.warnings.length > 0) {
     lines.push('', '## Warnings', '', ...evidence.warnings.map((warning) => `- ${warning}`));
@@ -833,18 +962,25 @@ async function runGithubDesignContext(options: ParsedOptions): Promise<ToolCliRe
         });
       }
     } catch (error) {
-      if (options.requireConnector && !connectorIntakeIsRecoverable(error)) {
-        return fail('GitHub connector intake is required and could not read the repository', {
-          repo: `${repo.owner}/${repo.repo}`,
-          reason: error instanceof Error ? error.message : String(error),
-          nextStep: 'Connect GitHub, grant access to this repository, then rerun the github-design-context command. Do not draft design-system files from URL text alone.',
+      const connectorReason = error instanceof Error ? error.message : String(error);
+      try {
+        evidence = await collectGithubEvidenceWithGitClone(repo, {
+          ...(options.ref === undefined ? {} : { ref: options.ref }),
+          maxFiles,
+          reason: connectorReason,
         });
+      } catch (cloneError) {
+        const cloneReason = cloneError instanceof Error ? cloneError.message : String(cloneError);
+        if (options.requireConnector) {
+          return fail('Required GitHub repository intake could not read the repository through connector, git, or GitHub CLI', {
+            repo: `${repo.owner}/${repo.repo}`,
+            connectorReason,
+            cloneReason,
+            nextStep: 'Run `gh auth login --web` or configure local git credentials with access to this repository, then rerun github-design-context. Do not draft design-system files from URL text alone.',
+          });
+        }
+        throw cloneError;
       }
-      evidence = await collectGithubEvidenceWithGitClone(repo, {
-        ...(options.ref === undefined ? {} : { ref: options.ref }),
-        maxFiles,
-        reason: error instanceof Error ? error.message : String(error),
-      });
     }
   } else {
     const reason = 'error' in baseUrl
@@ -852,13 +988,6 @@ async function runGithubDesignContext(options: ParsedOptions): Promise<ToolCliRe
       : typeof token === 'string'
         ? 'OD_TOOL_TOKEN is not available'
         : token.error;
-    if (options.requireConnector) {
-      return fail('GitHub connector intake is required but the agent connector environment is missing', {
-        repo: `${repo.owner}/${repo.repo}`,
-        reason,
-        nextStep: 'Run this command from an Open Design agent run with OD_DAEMON_URL and OD_TOOL_TOKEN injected.',
-      });
-    }
     evidence = await collectGithubEvidenceWithGitClone(repo, {
       ...(options.ref === undefined ? {} : { ref: options.ref }),
       maxFiles,
@@ -871,6 +1000,7 @@ async function runGithubDesignContext(options: ParsedOptions): Promise<ToolCliRe
     ok: true,
     repo: `${repo.owner}/${repo.repo}`,
     method: written.method,
+    ...(written.localCloneMethod === undefined ? {} : { localCloneMethod: written.localCloneMethod }),
     outputPath: path.relative(process.cwd(), path.resolve(outputPath)).split(path.sep).join('/'),
     snapshotFiles: written.files.map((file) => file.outputPath).filter(Boolean),
     warnings: written.warnings,

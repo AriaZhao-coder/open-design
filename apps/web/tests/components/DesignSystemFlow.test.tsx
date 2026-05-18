@@ -569,7 +569,7 @@ describe('DesignSystemCreationFlow', () => {
     );
   });
 
-  it('allows GitHub repo links without Composio by using local git fallback', () => {
+  it('allows GitHub repo links without Composio by using local GitHub intake', () => {
     const onOpenConnectorsTab = vi.fn();
     const config = {
       composio: { apiKeyConfigured: false },
@@ -587,6 +587,7 @@ describe('DesignSystemCreationFlow', () => {
     const input = screen.getByPlaceholderText('https://github.com/owner/repo') as HTMLInputElement;
     expect(input.disabled).toBe(false);
     expect(screen.getByText('Local GitHub intake available')).toBeTruthy();
+    expect(screen.getByText(/local git or GitHub CLI auth can still snapshot repos/i)).toBeTruthy();
 
     fireEvent.change(input, { target: { value: 'https://github.com/nexu-io/open-design/' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
@@ -846,7 +847,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
-        pendingPrompt: expect.stringContaining('The command may use a shallow git clone fallback after connector output is rate-limited or oversized.'),
+        pendingPrompt: expect.stringContaining('The command may use a shallow local clone fallback after connector output is unavailable, permission-blocked, rate-limited, or oversized.'),
       }),
     );
   });

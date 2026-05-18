@@ -2095,12 +2095,12 @@ function GitHubConnectorGate({
   const account = getDisplayableGithubAccountLabel(connector);
   const busy = action !== null;
   let title = 'GitHub connector optional';
-  let description = 'Public repositories can be read with local git/gh. Connect GitHub only when connector access is useful.';
+  let description = 'Repositories can be read with local git or GitHub CLI. For private repos, authorize with gh auth login.';
   let icon: 'github' | 'settings' | 'spinner' = 'github';
 
   if (!composioConfigured) {
     title = 'Local GitHub intake available';
-    description = 'Add public repository URLs now. Configure Composio only for connector-backed access; local git/gh fallback can still snapshot public repos.';
+    description = 'Add repository URLs now. Configure Composio only for connector-backed access; local git or GitHub CLI auth can still snapshot repos.';
     icon = 'settings';
   } else if (loading) {
     title = 'Checking GitHub connector';
@@ -2108,13 +2108,13 @@ function GitHubConnectorGate({
     icon = 'spinner';
   } else if (authorizationPending) {
     title = 'GitHub authorization pending';
-    description = 'Finish authorization in the browser window. Public repo URLs can still use local git/gh fallback.';
+    description = 'Finish authorization in the browser window. Repo URLs can still use local git or GitHub CLI fallback.';
   } else if (connected) {
     title = account ? `Connected as ${account}` : 'GitHub connected';
-    description = 'Repository intake will try the connector first, then use local git/gh fallback if connector output is limited.';
+    description = 'Repository intake will try the connector first, then use local git or authenticated GitHub CLI fallback if needed.';
   } else if (composioConfigured) {
     title = 'Composio key configured';
-    description = 'Connect GitHub for connector-backed access, or add public repository URLs and let local git/gh snapshot them.';
+    description = 'Connect GitHub for connector-backed access, or add repository URLs and let local git/GitHub CLI snapshot them.';
   }
 
   return (
@@ -2581,8 +2581,9 @@ function buildCreationAgentPrompt(
     'Completion gate:',
     '- For each linked GitHub repository, there must be a `context/github/*.md` evidence note plus command-written snapshots under `context/github/*/files/` before writing final design-system rules or previews.',
     '- Do not call GitHub connector tree/content/raw tools directly from the agent. Use only the bounded `github-design-context` command listed in `context/source-context.md`; it handles large repositories by narrowing and snapshotting evidence locally.',
-    '- If the bounded command records that it used its shallow git clone fallback because the connector was rate-limited or oversized, treat those command-written snapshots as valid evidence and continue.',
-    '- If the bounded command cannot write snapshots at all, stop with the permission, connection, or clone issue. Do not substitute ad-hoc public GitHub browsing, memory, or URL-only inference.',
+    '- If the bounded command records that it used its shallow local clone fallback because the connector was unavailable, permission-blocked, rate-limited, or oversized, treat those command-written snapshots as valid evidence and continue.',
+    '- For private repositories, local git credentials or GitHub CLI authentication (`gh auth login --web`) are valid intake paths because the command still writes local evidence snapshots.',
+    '- If the bounded command cannot write snapshots at all, stop with the permission, GitHub CLI login, connection, rate-limit, or clone issue. Do not substitute ad-hoc public GitHub browsing, memory, or URL-only inference.',
     '- Finish only after the project contains reviewable design-system artifacts: `DESIGN.md`, reusable token/style files, preview HTML, UI-kit examples, and any supported assets.',
     '',
     `Company / design system context:\n${state.company.trim()}`,
@@ -2717,7 +2718,7 @@ function buildSourceContextManifest(
     '- preview/ should contain small reviewable HTML cards for typography, color, spacing, brand, or component evidence.',
     '- ui_kits/ should contain interface examples that demonstrate how the system is applied.',
     '- assets/ and context/ should preserve logos, brand files, provenance, and source notes for future projects.',
-    '- GitHub evidence must come from the bounded `github-design-context` command, not direct connector tree/content/raw tool calls. The command may record connector use or its built-in shallow git clone fallback when connector output is rate-limited or oversized.',
+    '- GitHub evidence must come from the bounded `github-design-context` command, not direct connector tree/content/raw tool calls. The command may record connector use, local git clone, or authenticated GitHub CLI clone when connector output is unavailable, rate-limited, or oversized.',
     '- Draft design systems cannot be used by other projects until published.',
   );
 
@@ -2731,14 +2732,14 @@ function buildGithubConnectorRunbook(githubUrls: string[]): string {
     .join('\n');
   return [
     'GitHub repository intake is required before drafting the design system:',
-    '1. Run `"$OD_NODE_BIN" "$OD_BIN" tools connectors list --format compact` to check whether the connected `github` connector is available. If it is missing, rate-limited, or output-limited, the bounded intake command can still use local git/gh fallback for public or locally authenticated repositories.',
+    '1. Run `"$OD_NODE_BIN" "$OD_BIN" tools connectors list --format compact` to check whether the connected `github` connector is available. If it is missing, permission-blocked, rate-limited, or output-limited, the bounded intake command can still use local git credentials or authenticated GitHub CLI (`gh auth login --web`) for public and private repositories.',
     '2. For each linked repository, run the local intake command before writing design-system files:',
     intakeCommands,
     '3. Do not call GitHub connector tree/content/raw tools directly from the agent. Large repositories can trigger `CONNECTOR_OUTPUT_TOO_LARGE`; the bounded intake command is the only allowed GitHub repository intake path for this workflow.',
     '4. The intake command narrows large repositories through bounded directory browsing, selects design-system-relevant files, and writes a reviewable evidence note plus file snapshots under `context/github/`; keep those files as the source evidence for this design-system project.',
     '5. If you already hit `CONNECTOR_OUTPUT_TOO_LARGE` or `CONNECTOR_RATE_LIMITED` from a direct connector call, do not stop and do not retry the same direct tool. Run the bounded intake command above, then inspect the written snapshots.',
-    '6. The command may use a shallow git clone fallback after connector output is rate-limited or oversized. That fallback is part of the bounded intake command and satisfies this workflow when it writes snapshot files under `context/github/*/files/`.',
-    '7. The command is strict: if the bounded intake command cannot write snapshot files, stop and explain the permission, connection, rate-limit, or clone problem. Do not use ad-hoc public GitHub browsing, memory, or URL-only inference for design-system files.',
+    '6. The command may use a shallow local clone fallback after connector output is unavailable, permission-blocked, rate-limited, or oversized. Plain git credentials and authenticated GitHub CLI clone are both valid because the command writes bounded snapshots under `context/github/*/files/`.',
+    '7. The command is strict: if the bounded intake command cannot write snapshot files, stop and explain the permission, GitHub CLI login, connection, rate-limit, or clone problem. Do not use ad-hoc public GitHub browsing, memory, or URL-only inference for design-system files.',
     '8. Inspect the generated evidence note plus snapshots for README, package manifests, Tailwind/theme/token files, global CSS, component source for buttons/forms/navigation/cards/tables, layout shells, icons/logos/assets, and representative app entry files.',
     '9. Use that evidence to create or update `DESIGN.md`, `colors_and_type.css`, `README.md`, `SKILL.md`, `preview/`, `ui_kits/`, and `assets/` so the Design System tab can review the output.',
   ].join('\n');
@@ -2765,7 +2766,7 @@ function githubConnectorStatusForManifest(options: {
   githubConnector: ConnectorDetail | null;
 }): string {
   if (!options.composioConfigured) {
-    return 'GitHub connector is not configured; repository intake will use local git/gh fallback when possible.';
+    return 'GitHub connector is not configured; repository intake will use local git credentials or authenticated GitHub CLI when possible.';
   }
   if (isGithubConnectorConnected(options.githubConnector)) {
     const account = options.githubConnector?.accountLabel?.trim();
@@ -2773,7 +2774,7 @@ function githubConnectorStatusForManifest(options: {
       ? `connected as ${account}.`
       : 'connected.';
   }
-  return 'Composio key is configured, but GitHub is not connected; repository intake can still use local git/gh fallback when possible.';
+  return 'Composio key is configured, but GitHub is not connected; repository intake can still use local git credentials or authenticated GitHub CLI when possible.';
 }
 
 function buildProvenance(state: SetupState): DesignSystemProvenance {

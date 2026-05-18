@@ -324,7 +324,7 @@ describe('connectors tool CLI', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('uses shallow git clone fallback when connector rate limits all snapshot file reads', async () => {
+  it('uses shallow local clone fallback when connector rate limits all snapshot file reads', async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-connectors-cli-'));
     process.chdir(tmpDir);
     process.env.OD_DAEMON_URL = 'http://127.0.0.1:7456';
@@ -399,6 +399,7 @@ EOF
     expect(stdout).toEqual(expect.objectContaining({
       ok: true,
       method: 'git-clone-fallback',
+      localCloneMethod: 'git',
       snapshotFiles: expect.arrayContaining([
         'context/github/acme-rate-limited-ui/files/package.json',
         'context/github/acme-rate-limited-ui/files/src/styles.css',
@@ -408,17 +409,123 @@ EOF
         expect.stringContaining('GitHub connector bounded intake produced no snapshot files.'),
       ]),
     }));
-    await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui.md'), 'utf8')).resolves.toContain('shallow local git clone fallback');
+    await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui.md'), 'utf8')).resolves.toContain('shallow local clone fallback');
     await expect(readFile(path.join(tmpDir, 'context/github/acme-rate-limited-ui/files/src/styles.css'), 'utf8')).resolves.toContain('--color-brand');
 
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('fails instead of using public fallback when GitHub connector intake is required', async () => {
+  it('uses GitHub CLI authenticated clone when connector access fails', async () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-connectors-cli-'));
     process.chdir(tmpDir);
     process.env.OD_DAEMON_URL = 'http://127.0.0.1:7456';
     process.env.OD_TOOL_TOKEN = 'agent-run-token';
+
+    const fakeBinDir = path.join(tmpDir, 'bin');
+    await mkdir(fakeBinDir, { recursive: true });
+    const fakeGitPath = path.join(fakeBinDir, 'git');
+    await writeFile(fakeGitPath, `#!/bin/sh
+echo "fatal: could not read Username for 'https://github.com': terminal prompts disabled" >&2
+exit 128
+`, 'utf8');
+    await chmod(fakeGitPath, 0o755);
+    const fakeGhPath = path.join(fakeBinDir, 'gh');
+    await writeFile(fakeGhPath, `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "gh version 2.0.0"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo "Logged in to github.com account qiongyu" >&2
+  exit 0
+fi
+if [ "$1" = "repo" ] && [ "$2" = "clone" ]; then
+  dest="$4"
+  mkdir -p "$dest/src"
+  cat > "$dest/README.md" <<'EOF'
+# Private UI
+EOF
+  cat > "$dest/package.json" <<'EOF'
+{"dependencies":{"@radix-ui/react-tabs":"latest"}}
+EOF
+  cat > "$dest/src/theme.css" <<'EOF'
+:root { --color-brand: #f15a24; --space-md: 16px; }
+EOF
+  exit 0
+fi
+echo "unexpected gh args: $*" >&2
+exit 1
+`, 'utf8');
+    await chmod(fakeGhPath, 0o755);
+    process.env.PATH = `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`;
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        connectors: [{
+          id: 'github',
+          name: 'GitHub',
+          provider: 'composio',
+          category: 'Developer',
+          status: 'connected',
+        }],
+      }), { headers: { 'Content-Type': 'application/json' }, status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: { message: 'repository access denied' },
+      }), { headers: { 'Content-Type': 'application/json' }, status: 403 }));
+
+    const result = await runConnectorsToolCli(['github-design-context', '--repo', 'acme/private-ui', '--require-connector']);
+
+    expect(result.exitCode).toBe(0);
+    const stdout = JSON.parse(stdoutOutput.join(''));
+    expect(stdout).toEqual(expect.objectContaining({
+      ok: true,
+      method: 'git-clone-fallback',
+      localCloneMethod: 'gh-cli',
+      snapshotFiles: expect.arrayContaining([
+        'context/github/acme-private-ui/files/package.json',
+        'context/github/acme-private-ui/files/src/theme.css',
+      ]),
+      warnings: expect.arrayContaining([
+        expect.stringContaining('GitHub CLI clone'),
+        expect.stringContaining('repository access denied'),
+      ]),
+    }));
+    await expect(readFile(path.join(tmpDir, 'context/github/acme-private-ui.md'), 'utf8')).resolves.toContain('GitHub CLI authenticated clone');
+    await expect(readFile(path.join(tmpDir, 'context/github/acme-private-ui/files/src/theme.css'), 'utf8')).resolves.toContain('--color-brand');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reports GitHub CLI login when connector and local clone cannot read a repository', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-connectors-cli-'));
+    process.chdir(tmpDir);
+    process.env.OD_DAEMON_URL = 'http://127.0.0.1:7456';
+    process.env.OD_TOOL_TOKEN = 'agent-run-token';
+
+    const fakeBinDir = path.join(tmpDir, 'bin');
+    await mkdir(fakeBinDir, { recursive: true });
+    const fakeGitPath = path.join(fakeBinDir, 'git');
+    await writeFile(fakeGitPath, `#!/bin/sh
+echo "fatal: repository not found" >&2
+exit 128
+`, 'utf8');
+    await chmod(fakeGitPath, 0o755);
+    const fakeGhPath = path.join(fakeBinDir, 'gh');
+    await writeFile(fakeGhPath, `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "gh version 2.0.0"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo "You are not logged into any GitHub hosts" >&2
+  exit 1
+fi
+echo "unexpected gh args: $*" >&2
+exit 1
+`, 'utf8');
+    await chmod(fakeGhPath, 0o755);
+    process.env.PATH = `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`;
 
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -437,8 +544,8 @@ EOF
     const result = await runConnectorsToolCli(['github-design-context', '--repo', 'acme/private-ui', '--require-connector']);
 
     expect(result.exitCode).toBe(1);
-    expect(stderrOutput.join('')).toContain('GitHub connector intake is required and could not read the repository');
-    expect(stderrOutput.join('')).toContain('repository access denied');
+    expect(stderrOutput.join('')).toContain('Required GitHub repository intake could not read the repository through connector, git, or GitHub CLI');
+    expect(stderrOutput.join('')).toContain('gh auth login --web');
     await expect(readFile(path.join(tmpDir, 'context/github/acme-private-ui.md'), 'utf8')).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
