@@ -48,6 +48,7 @@ export type ChipAction =
       pluginId: 'od-figma-migration';
       projectKind: ProjectKind;
       inputs?: Record<string, unknown>;
+      projectMetadata?: ProjectMetadata;
     }
   | { kind: 'create-plugin' }
   | { kind: 'import-folder' }

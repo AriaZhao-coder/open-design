@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DesignSystemSummary } from '../../src/types';
@@ -10,6 +11,7 @@ vi.mock('../../src/providers/registry', () => ({
 }));
 
 import { ProjectDesignSystemPicker } from '../../src/components/ProjectDesignSystemPicker';
+import { I18nProvider, type Locale } from '../../src/i18n';
 import { fetchDesignSystemPreview } from '../../src/providers/registry';
 
 const fetchDesignSystemPreviewMock = vi.mocked(fetchDesignSystemPreview);
@@ -41,14 +43,24 @@ afterEach(() => {
 });
 
 describe('ProjectDesignSystemPicker', () => {
-  it('checks the active project design system and previews it by default', async () => {
-    render(
-      <ProjectDesignSystemPicker
-        designSystems={designSystems}
-        selectedId="noir"
-        onChange={vi.fn()}
-      />,
+  function renderPicker(
+    props: Partial<ComponentProps<typeof ProjectDesignSystemPicker>> = {},
+    locale: Locale = 'zh-CN',
+  ) {
+    return render(
+      <I18nProvider initial={locale}>
+        <ProjectDesignSystemPicker
+          designSystems={designSystems}
+          selectedId="noir"
+          onChange={vi.fn()}
+          {...props}
+        />
+      </I18nProvider>,
     );
+  }
+
+  it('checks the active project design system and previews it by default', async () => {
+    renderPicker();
 
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
 
@@ -63,13 +75,7 @@ describe('ProjectDesignSystemPicker', () => {
   });
 
   it('updates the preview target on hover and opens the fullscreen preview', async () => {
-    render(
-      <ProjectDesignSystemPicker
-        designSystems={designSystems}
-        selectedId="noir"
-        onChange={vi.fn()}
-      />,
-    );
+    renderPicker();
 
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
     await screen.findByTestId('project-ds-picker-preview-frame');
@@ -83,7 +89,17 @@ describe('ProjectDesignSystemPicker', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getAllByText('Clay').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByLabelText('designSystemPicker.closeFullscreen'));
+    fireEvent.click(screen.getByLabelText('关闭全屏预览'));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('uses localized picker copy and design-system category labels', async () => {
+    renderPicker({}, 'fr');
+
+    fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
+
+    expect(screen.getByPlaceholderText('Rechercher des design systems')).toBeTruthy();
+    expect(await screen.findByText('Produit')).toBeTruthy();
+    expect(screen.getByText('Aucun design system')).toBeTruthy();
   });
 });
