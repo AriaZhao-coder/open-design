@@ -16,6 +16,7 @@
  */
 
 import { ogDefaultImage } from '../image-assets';
+import FaviconLinks from './favicon-links.astro';
 
 export interface SeoHeadProps {
   /** 'website' for landing/list pages, 'article' for blog posts. */
@@ -130,6 +131,7 @@ const blogJsonLd =
 <meta name='theme-color' content='#efe7d2' />
 <link rel='canonical' href={canonical} />
 <link rel='alternate' type='application/rss+xml' title='Open Design Blog' href={rssUrl} />
+<FaviconLinks />
 
 {props.googleSiteVerification && (
   <meta name='google-site-verification' content={props.googleSiteVerification} />

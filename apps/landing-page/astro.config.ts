@@ -58,6 +58,20 @@ export default defineConfig({
           const date = blogDates.get(path);
           if (date) item.lastmod = date;
         } else if (
+          // High-intent landing pages — these are the brand defense
+          // and commercial-intent surfaces from
+          // growth/seo-opendesigner-analysis.md. They should be
+          // crawled more often than the catalog and prioritized
+          // above generic detail pages.
+          path === '/official/' ||
+          path === '/quickstart/' ||
+          path === '/compare/' ||
+          path === '/agents/' ||
+          path === '/alternatives/claude-design/'
+        ) {
+          item.priority = 0.9;
+          item.changefreq = changefreq.weekly;
+        } else if (
           path === '/skills/' ||
           path === '/systems/' ||
           path === '/craft/'

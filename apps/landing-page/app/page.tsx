@@ -67,7 +67,6 @@ const REPO_CONTRIBUTORS = `${REPO}/graphs/contributors`;
 const REPO_DAEMON = `${REPO}/tree/main/apps/daemon`;
 const REPO_SKILLS = `${REPO}/tree/main/skills`;
 const REPO_DESIGN_SYSTEMS = `${REPO}/tree/main/design-systems`;
-const REPO_DOCS = (file: string) => `${REPO}/blob/main/${file}`;
 const DISCORD = 'https://discord.gg/9ptkbbqRu';
 
 // Lineage / inspiration projects — make every brand mention clickable.
@@ -117,6 +116,17 @@ const WIRE_CITIES = [
   { name: 'Sydney', coord: '33.87°S' },
 ] as const;
 
+/**
+ * Question / answer pair for the visible homepage FAQ. The exact same
+ * shape is consumed by the FAQPage JSON-LD in `pages/index.astro`, so
+ * the two stay in lockstep: every schema entry has a visible answer on
+ * the page (which Google requires for the rich result to be eligible).
+ */
+export interface HomeFaqEntry {
+  q: string;
+  a: string;
+}
+
 interface PageProps {
   /**
    * Live counts from the Markdown catalogs. Required: every visible
@@ -133,6 +143,12 @@ interface PageProps {
     starsLabel: string;
     versionLabel: string;
   };
+  /**
+   * FAQ pairs the page renders above the contact section. Required so
+   * the structured-data block on `/` can reference visible content
+   * verbatim — see `FAQ Rules` in `growth/seo-opendesigner-analysis.md`.
+   */
+  faq: ReadonlyArray<HomeFaqEntry>;
 }
 
 /**
@@ -151,7 +167,7 @@ function pad2(n: number | undefined): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-export default function Page({ counts, github }: PageProps) {
+export default function Page({ counts, github, faq }: PageProps) {
   const skills = fmt(counts.skills);
   const systems = fmt(counts.systems);
   const deckCount = pad2(counts.byMode?.deck);
@@ -232,15 +248,16 @@ export default function Page({ counts, github }: PageProps) {
                 Open-source design studio <span className='ix'>· Nº 01</span>
               </span>
               <h1 className='display' data-reveal>
-                Designing <em>intelligence</em> with skills, <em>taste,</em> and{' '}
-                <em>code</em>
+                Open-source <em>Claude Design,</em> running on{' '}
+                <em>your own agent</em>
                 <span className='dot'>.</span>
               </h1>
               <p className='lead' data-reveal>
-                The open-source alternative to Claude Design. Your existing
-                coding agent — Claude · Codex · Cursor · Gemini · OpenCode ·
-                Qwen — becomes the design engine, driven by {skills} composable
-                skills and {systems} brand-grade design systems.
+                Open Design is the official, local-first alternative to Claude
+                Design. Your existing coding agent — Claude Code · Codex ·
+                Cursor · Gemini · OpenCode · Qwen — becomes the design engine,
+                driven by {skills} composable skills and {systems} portable{' '}
+                <code className='code-inline'>DESIGN.md</code> systems.
               </p>
               <div className='hero-actions' data-reveal>
                 <a className='btn btn-primary' href={REPO} {...ext}>
@@ -1062,6 +1079,55 @@ export default function Page({ counts, github }: PageProps) {
           </div>
         </section>
 
+        {/* ====== FAQ ======
+         *
+         * Visible answers — kept in lockstep with the FAQPage JSON-LD
+         * defined in `app/pages/index.astro`. Each entry mirrors the
+         * `q`/`a` pair, so the structured data describes content the
+         * user actually sees (Google's rich-result eligibility rule).
+         */}
+        <section className='faq' id='faq' data-od-id='faq'>
+          <div className='container'>
+            <div className='sec-rule'>
+              <span className='roman'>VI·5.</span>
+              <span className='meta-grp'>
+                <span>Frequently asked</span>
+                <span className='dot-mark'>•</span>
+                <span>Official answers, no marketing fluff</span>
+              </span>
+              <span>{`00${faq.length}`.slice(-3)} / 008</span>
+            </div>
+            <div className='faq-head' data-reveal>
+              <span className='label'>
+                Open Design FAQ <span className='ix'>· Nº 06.5</span>
+              </span>
+              <h2 className='display'>
+                Questions about <em>Open Design</em>, <em>OpenDesign</em>, and
+                the <em>open-source</em> Claude Design alternative
+                <span className='dot'>.</span>
+              </h2>
+            </div>
+            <ol className='faq-list'>
+              {faq.map(({ q, a }, idx) => (
+                <li className='faq-item' key={q} data-reveal>
+                  <details>
+                    <summary>
+                      <span className='faq-index'>
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <span className='faq-q'>{q}</span>
+                      <span className='faq-toggle' aria-hidden='true'>
+                        +
+                      </span>
+                    </summary>
+                    <p className='faq-a'>{a}</p>
+                  </details>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
         {/* ====== CTA ====== */}
         <section className='cta' id='contact' data-od-id='cta'>
           <div className='container'>
@@ -1126,7 +1192,7 @@ export default function Page({ counts, github }: PageProps) {
               <div className='foot-brand'>
                 <a href='#top' className='brand'>
                   <span className='brand-mark'>
-                    <img src='/logo.webp' alt='' width={36} height={36} />
+                    <img src='/favicon.png' alt='' width={36} height={36} />
                   </span>
                   <span>Open Design</span>
                 </a>
@@ -1247,26 +1313,23 @@ export default function Page({ counts, github }: PageProps) {
                 </ul>
               </div>
               <div className='foot-col'>
-                <h5>Docs</h5>
+                <h5>Open Design</h5>
                 <ul>
                   <li>
-                    <a href={REPO_DOCS('QUICKSTART.md')} {...ext}>
-                      Quickstart
-                    </a>
+                    <a href='/official/'>Official source</a>
                   </li>
                   <li>
-                    <a href={REPO_DOCS('docs/architecture.md')} {...ext}>
-                      Architecture
-                    </a>
+                    <a href='/quickstart/'>Quickstart</a>
                   </li>
                   <li>
-                    <a href={REPO_DOCS('docs/skills-protocol.md')} {...ext}>
-                      Skill Protocol
-                    </a>
+                    <a href='/agents/'>Agents</a>
                   </li>
                   <li>
-                    <a href={REPO_DOCS('docs/roadmap.md')} {...ext}>
-                      Roadmap
+                    <a href='/compare/'>Compare</a>
+                  </li>
+                  <li>
+                    <a href='/alternatives/claude-design/'>
+                      Claude Design alternative
                     </a>
                   </li>
                 </ul>

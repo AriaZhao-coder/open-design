@@ -1,0 +1,160 @@
+---
+/*
+ * /agents/ — agent-name long tail.
+ *
+ * Captures "claude code design", "codex design", "cursor agent design",
+ * "gemini cli design", "opencode design", "qwen design" queries. Each
+ * agent gets a short card explaining how it plugs into Open Design.
+ * Per-agent detail pages (e.g. `/agents/claude-code/`) will follow as
+ * P2 work — this hub is the SEO entry point.
+ */
+import Layout from '../../_components/sub-page-layout.astro';
+
+const SITE = 'https://open-design.ai/';
+const REPO = 'https://github.com/nexu-io/open-design';
+
+const title = 'Open Design agents — Claude Code, Codex, Cursor, Gemini, OpenCode, Qwen';
+const description =
+  'Open Design works with every major coding agent. BYOK adapters for Claude Code, Codex (OpenAI), Cursor, Gemini CLI, OpenCode, and Qwen. Drive design from the same agent you use for code — no separate vendor login.';
+
+const agents = [
+  {
+    slug: 'claude-code',
+    name: 'Claude Code',
+    description:
+      'First-party support. Stream-JSON IPC, AskUserQuestion mid-turn, skill-aware system prompts. The default and most-tested adapter — best for users already on the Claude ecosystem.',
+    key: 'Anthropic API key (BYOK)',
+  },
+  {
+    slug: 'codex',
+    name: 'Codex (OpenAI)',
+    description:
+      'Drive design from OpenAI Codex CLI. Skills and DESIGN.md systems are agent-agnostic, so swapping from Claude to Codex is a config change, not a redesign.',
+    key: 'OpenAI API key (BYOK)',
+  },
+  {
+    slug: 'cursor',
+    name: 'Cursor',
+    description:
+      'Use Open Design from inside Cursor. The Cursor agent talks to the local Open Design daemon over HTTP; artifacts land in your project directory.',
+    key: 'Cursor account (uses your provider keys)',
+  },
+  {
+    slug: 'gemini',
+    name: 'Gemini CLI',
+    description:
+      'Google Gemini via the Gemini CLI adapter. Same skill protocol — pick a skill, pick a DESIGN.md, render. Useful when you want Gemini-class multimodal grounding for media skills.',
+    key: 'Google AI Studio key (BYOK)',
+  },
+  {
+    slug: 'opencode',
+    name: 'OpenCode',
+    description:
+      'OpenCode runs locally with your provider keys. Open Design treats it as a first-class agent for users who want a fully open-source agent runtime, not just an open-source design runtime.',
+    key: 'Provider keys via OpenCode config',
+  },
+  {
+    slug: 'qwen',
+    name: 'Qwen',
+    description:
+      'Alibaba Qwen via the Qwen adapter. Useful for Chinese-language design briefs and for teams already using DashScope. Same SKILL.md / DESIGN.md inputs.',
+    key: 'DashScope / Qwen API key (BYOK)',
+  },
+];
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Open Design', item: SITE },
+      { '@type': 'ListItem', position: 2, name: 'Agents', item: `${SITE}agents/` },
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Open Design supported agents',
+    itemListElement: agents.map((a, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: a.name,
+      url: `${SITE}agents/#${a.slug}`,
+    })),
+  },
+];
+---
+
+<Layout title={title} description={description} active="home" jsonLd={jsonLd}>
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Open Design</a>
+    <span>/</span>
+    <span aria-current="page">Agents</span>
+  </nav>
+
+  <article class="info-page">
+    <header class="catalog-head">
+      <span class="label">Adapters · Nº 04</span>
+      <h1 class="display">
+        Drive design from the <em>agent</em> you already use<span class="dot">.</span>
+      </h1>
+      <p class="lead">
+        Open Design is agent-agnostic. The same composable skills and the
+        same portable <code>DESIGN.md</code> systems work with Claude
+        Code, Codex, Cursor, Gemini CLI, OpenCode, Qwen, and any new
+        adapter that speaks the same protocol. BYOK throughout — your
+        keys, your spend, your data.
+      </p>
+    </header>
+
+    <section class="info-section">
+      <h2>How adapters <em>plug in</em></h2>
+      <p>
+        Every adapter is a thin shim that translates between the agent's
+        native message format and Open Design's skill protocol. The
+        runtime contract is in <code>packages/contracts</code> and the
+        adapter implementations live under
+        <code>apps/daemon/src/runtimes/defs/</code> in the
+        <a class="inline-link" href={REPO} target="_blank" rel="noreferrer noopener">repo</a>.
+        Adding a new adapter is a single file — no fork required.
+      </p>
+    </section>
+
+    <section class="info-section">
+      <h2>Supported <em>agents</em></h2>
+      <ul class="agent-grid">
+        {agents.map((a) => (
+          <li class="agent-card" id={a.slug}>
+            <h3>{a.name}</h3>
+            <p>{a.description}</p>
+            <p><strong>Credential:</strong> {a.key}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="info-section" id="byok">
+      <h2>What <em>BYOK</em> means here</h2>
+      <p>
+        BYOK ("bring your own key") in Open Design means the credentials
+        and spend stay on your side of the line:
+      </p>
+      <ul>
+        <li>Credentials live in <code>.od/media-config.json</code> or your shell env — never sent to any Open Design server (there isn't one).</li>
+        <li>API calls go from your machine straight to your provider; the daemon does not proxy.</li>
+        <li>Switching providers is a key swap, not a re-onboard.</li>
+        <li>API spend bills to your account on each provider.</li>
+      </ul>
+    </section>
+
+    <section class="info-section" id="next">
+      <h2>Next steps</h2>
+      <ul>
+        <li><a class="inline-link" href="/quickstart/">Quickstart</a> — install in three commands.</li>
+        <li><a class="inline-link" href="/skills/">Browse the skill catalog</a>.</li>
+        <li><a class="inline-link" href="/systems/">Browse design systems</a>.</li>
+        <li><a class="inline-link" href="/alternatives/claude-design/">Claude Design alternative</a> — full comparison.</li>
+      </ul>
+    </section>
+  </article>
+</Layout>

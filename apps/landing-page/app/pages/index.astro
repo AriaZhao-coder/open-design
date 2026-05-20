@@ -3,6 +3,7 @@ import Page from '../page';
 import '../globals.css';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import FaviconLinks from '../_components/favicon-links.astro';
 import FontStylesheet from '../_components/font-stylesheet.astro';
 import PreciseLazyload from '../_components/precise-lazyload.astro';
 import { heroImage, heroImageSrcset } from '../image-assets';
@@ -11,11 +12,113 @@ import { getGithubRepoMeta } from '../_lib/github';
 
 const counts = await getCatalogCounts();
 const github = await getGithubRepoMeta();
-const title = 'Open Design — Design with the agent already on your laptop.';
-const description = `The open-source alternative to Claude Design. Your existing coding agent — Claude · Codex · Cursor · Gemini · OpenCode · Qwen — becomes the design engine, driven by ${counts.skills} composable skills and ${counts.systems} brand-grade design systems.`;
+const title = 'Open Design — Official open-source Claude Design alternative';
+const description = `Open Design is the official open-source, local-first Claude Design alternative. Generate decks, landing pages, dashboards, and brand systems with Claude Code, Codex, Cursor, Gemini, OpenCode, or Qwen — driven by ${counts.skills} composable skills and ${counts.systems} portable DESIGN.md systems.`;
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
+const origin = Astro.site?.toString() ?? 'https://open-design.ai/';
+const logoUrl = new URL('/android-chrome-512x512.png', Astro.site).toString();
+
+const REPO_URL = 'https://github.com/nexu-io/open-design';
+const DISCORD_URL = 'https://discord.gg/9ptkbbqRu';
+
+// FAQ pairs — kept in lockstep with the visible FAQ section in page.tsx.
+// FAQPage schema must reflect content that is actually rendered.
+const faq = [
+  {
+    q: 'What is Open Design?',
+    a: 'Open Design is the official open-source AI design workspace from the nexu-io/open-design project. It turns a local coding agent — Claude Code, Codex, Cursor, Gemini CLI, OpenCode, or Qwen — into a design engine driven by composable skills and portable DESIGN.md systems.',
+  },
+  {
+    q: 'Is Open Design official?',
+    a: `Yes. The canonical project lives at ${origin} and the source is on GitHub at ${REPO_URL}. "Open Design", "OpenDesign", "open-design", and "Open Design AI" all refer to this same project.`,
+  },
+  {
+    q: 'How is Open Design different from Claude Design?',
+    a: 'Claude Design is a hosted product tied to a single vendor. Open Design is local-first, open source under Apache-2.0, and BYOK — you bring your existing agent and credentials, and your design system lives in your repo as a DESIGN.md file.',
+  },
+  {
+    q: 'Does Open Design run locally?',
+    a: 'Yes. The desktop app, daemon, and skill runtime all run on your machine. Generated artifacts land in your project directory; no design output is forced through a vendor cloud.',
+  },
+  {
+    q: 'Which coding agents does Open Design support?',
+    a: 'Claude Code, Codex (OpenAI), Cursor, Gemini CLI, OpenCode, Qwen, and other adapters that speak the same skill protocol. Switching agents does not require redesigning your skill library.',
+  },
+  {
+    q: 'Do I need a Claude subscription?',
+    a: 'No. Use whichever agent or API key you already have. Open Design is BYOK — bring your own keys for Anthropic, OpenAI, Google, or any supported adapter.',
+  },
+  {
+    q: 'What are skills and design systems?',
+    a: 'A skill is a SKILL.md file that teaches an agent how to produce one artifact (deck, landing page, dashboard, social post). A design system is a DESIGN.md file that encodes a brand — tokens, type, motion — so any skill can render in that brand without re-prompting.',
+  },
+  {
+    q: 'Can I self-host or fork it?',
+    a: 'Yes. Apache-2.0 license, full source on GitHub. Fork the repo, edit skills, ship your own brand-keyed build, or run the daemon on your own machines.',
+  },
+];
+
+const websiteSchema = {
+  '@type': 'WebSite',
+  '@id': `${origin}#website`,
+  name: 'Open Design',
+  alternateName: ['OpenDesign', 'open-design', 'opendesign', 'Open Design AI', 'OD'],
+  url: origin,
+  inLanguage: 'en',
+  publisher: { '@id': `${origin}#organization` },
+};
+
+const organizationSchema = {
+  '@type': 'Organization',
+  '@id': `${origin}#organization`,
+  name: 'Open Design',
+  alternateName: ['OpenDesign', 'open-design', 'opendesign', 'Open Design AI', 'OD', 'nexu-io/open-design'],
+  url: origin,
+  logo: {
+    '@type': 'ImageObject',
+    url: logoUrl,
+    width: 512,
+    height: 512,
+  },
+  sameAs: [REPO_URL, DISCORD_URL],
+};
+
+const softwareSchema = {
+  '@type': 'SoftwareApplication',
+  '@id': `${origin}#software`,
+  name: 'Open Design',
+  alternateName: ['OpenDesign', 'open-design', 'Open Design AI'],
+  description,
+  url: origin,
+  applicationCategory: 'DesignApplication',
+  operatingSystem: 'macOS, Windows, Linux',
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  softwareVersion: github.versionLabel,
+  downloadUrl: `${REPO_URL}/releases`,
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  publisher: { '@id': `${origin}#organization` },
+};
+
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${origin}#faq`,
+  mainEntity: faq.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+};
+
+const homepageGraph = {
+  '@context': 'https://schema.org',
+  '@graph': [websiteSchema, organizationSchema, softwareSchema, faqSchema],
+};
 const pageHtml = renderToStaticMarkup(
-  Page({ counts, github }) as ReturnType<typeof createElement>,
+  Page({ counts, github, faq }) as ReturnType<typeof createElement>,
 );
 ---
 
@@ -29,8 +132,7 @@ const pageHtml = renderToStaticMarkup(
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
 
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <FaviconLinks />
 
     <FontStylesheet />
 
@@ -57,11 +159,19 @@ const pageHtml = renderToStaticMarkup(
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={heroImage} />
+    <meta property="og:locale" content="en_US" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={heroImage} />
+
+    {/*
+     * Single @graph JSON-LD block — WebSite + Organization +
+     * SoftwareApplication + FAQPage. The FAQPage entries must mirror
+     * the visible FAQ rendered by `<HomeFaq />` further down the page.
+     */}
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(homepageGraph)} />
   </head>
   <body>
     <Fragment set:html={pageHtml} />

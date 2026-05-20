@@ -1,0 +1,161 @@
+---
+/*
+ * /compare/ — evaluation-stage comparison hub.
+ *
+ * Captures "open design vs <competitor>" queries with honest summary
+ * cards that link out to per-competitor detail pages (today: just the
+ * primary Claude Design alternative page; others will follow as
+ * `/alternatives/<slug>/`).
+ *
+ * Honest-limitations block at the bottom is required by §8 of the
+ * SEO plan — comparison pages without a limitation section read as
+ * adversarial and tank trust.
+ */
+import Layout from '../../_components/sub-page-layout.astro';
+
+const SITE = 'https://open-design.ai/';
+
+const title = 'Open Design vs Claude Design, Figma Make, v0, Lovable — honest comparison';
+const description =
+  'Compare Open Design to the major AI design tools. Hosted vs local-first, BYOK vs vendor-locked, single-shot generation vs portable DESIGN.md systems. Includes an honest limitations section.';
+
+const comparisons = [
+  {
+    competitor: 'Claude Design',
+    href: '/alternatives/claude-design/',
+    summary:
+      'Hosted product tied to a single vendor. Open Design is local-first, BYOK, and Apache-2.0 — your skills and DESIGN.md live in your repo.',
+    cta: 'Read the full comparison →',
+  },
+  {
+    competitor: 'Figma Make',
+    href: 'https://github.com/nexu-io/open-design',
+    summary:
+      'Figma Make focuses on prompt-to-mockup inside Figma. Open Design ships portable HTML/React/PDF artifacts directly into your project, driven by the agent already on your laptop.',
+    cta: 'See the repo for migration notes →',
+  },
+  {
+    competitor: 'v0 by Vercel',
+    href: 'https://github.com/nexu-io/open-design',
+    summary:
+      'v0 generates React components on a hosted runtime. Open Design generates any artifact (decks, dashboards, landing pages, brand systems) on your local runtime, with skills you can fork and edit as Markdown.',
+    cta: 'See the repo for migration notes →',
+  },
+  {
+    competitor: 'Lovable / Bolt',
+    href: 'https://github.com/nexu-io/open-design',
+    summary:
+      'Lovable and Bolt focus on prompt-to-app on a hosted sandbox. Open Design is the design-skill layer for an agent you already use — it complements full-app generators rather than replacing them.',
+    cta: 'See the repo for migration notes →',
+  },
+  {
+    competitor: 'Open CoDesign',
+    href: 'https://github.com/nexu-io/open-design',
+    summary:
+      'Open CoDesign is a sibling open-source project. Open Design is compatible: its skill protocol can wrap Open CoDesign workflows, and we recommend using them together for codesign-style sessions.',
+    cta: 'See the repo for migration notes →',
+  },
+];
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Open Design', item: SITE },
+      { '@type': 'ListItem', position: 2, name: 'Compare', item: `${SITE}compare/` },
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: title,
+    description,
+    url: `${SITE}compare/`,
+    isPartOf: { '@id': `${SITE}#website` },
+  },
+];
+---
+
+<Layout title={title} description={description} active="home" jsonLd={jsonLd}>
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Open Design</a>
+    <span>/</span>
+    <span aria-current="page">Compare</span>
+  </nav>
+
+  <article class="info-page">
+    <header class="catalog-head">
+      <span class="label">Evaluation · Nº 02</span>
+      <h1 class="display">
+        Open Design vs <em>everything else</em><span class="dot">.</span>
+      </h1>
+      <p class="lead">
+        Short, honest summaries of how Open Design relates to the other AI
+        design tools you might be evaluating. Each summary links to a
+        deeper comparison — or, where one doesn't exist yet, to the
+        GitHub repo where the migration notes live.
+      </p>
+    </header>
+
+    <nav class="info-toc" aria-label="On this page">
+      <span>On this page:</span>
+      <a href="#claude-design">vs Claude Design</a>
+      <a href="#figma-make">vs Figma Make</a>
+      <a href="#v0">vs v0</a>
+      <a href="#lovable-bolt">vs Lovable / Bolt</a>
+      <a href="#open-codesign">vs Open CoDesign</a>
+      <a href="#limits">Honest limits</a>
+    </nav>
+
+    <section class="info-section">
+      <ul class="compare-grid">
+        {comparisons.map((c) => {
+          const id =
+            c.competitor === 'Claude Design'
+              ? 'claude-design'
+              : c.competitor === 'Figma Make'
+              ? 'figma-make'
+              : c.competitor === 'v0 by Vercel'
+              ? 'v0'
+              : c.competitor === 'Lovable / Bolt'
+              ? 'lovable-bolt'
+              : 'open-codesign';
+          const isInternal = c.href.startsWith('/');
+          return (
+            <li class="compare-card" id={id}>
+              <h3>Open Design vs <em>{c.competitor}</em></h3>
+              <p>{c.summary}</p>
+              <a
+                href={c.href}
+                target={isInternal ? undefined : '_blank'}
+                rel={isInternal ? undefined : 'noreferrer noopener'}
+              >
+                {c.cta}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+
+    <section class="info-section" id="limits">
+      <h2>Honest limits</h2>
+      <p>
+        Open Design is not a hosted PaaS. If you want a one-click web
+        sandbox with zero local install, the hosted competitors above are
+        better for that use case. Open Design is the better fit when:
+      </p>
+      <ul>
+        <li>You care about your design system staying in your repo as Markdown, not in someone's cloud DB.</li>
+        <li>You want to drive design from the same agent you use for code (Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Qwen).</li>
+        <li>You need BYOK so API spend and credentials stay on your account.</li>
+        <li>You expect to fork and rebrand the tool for your studio or company.</li>
+      </ul>
+      <p>
+        For everything else, the comparison pages above describe the
+        trade-offs in detail.
+      </p>
+    </section>
+  </article>
+</Layout>
