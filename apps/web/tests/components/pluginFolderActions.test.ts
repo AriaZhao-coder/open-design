@@ -143,5 +143,29 @@ describe('buildPluginFolderAgentActionPrompt', () => {
     it('ends by handing the PR URL back to chat', () => {
       expect(prompt).toMatch(/PR URL|pull\/new|paste it into chat/);
     });
+
+    it('warns the agent against assuming standalone jq is installed', () => {
+      // QA hit this: agent ran `jq '{name,title,...}' generated-plugin/open-design.json`
+      // at step 2 and stopped with `zsh:1: command not found: jq` before
+      // even reaching the fork step. The prompt now lists portable
+      // alternatives (Read / cat / node -e) and bans the assumption.
+      expect(prompt).toMatch(/Do not assume the standalone `jq` binary is installed/);
+      expect(prompt).toMatch(/cat .*open-design\.json/);
+      expect(prompt).toMatch(/node -e/);
+    });
+  });
+
+  describe('jq guidance shared between contribute and publish', () => {
+    it('disambiguates standalone jq from gh\'s built-in --jq flag', () => {
+      // gh ships its own jq library, so `gh ... --jq` is fine — that's
+      // what RULE step "Resolve author identity" uses. The ban must
+      // single out the brew-installed standalone binary, otherwise the
+      // agent will read the ban literally and stop using gh's flag too.
+      const contributePrompt = buildPluginFolderAgentActionPrompt(FOLDER, 'contribute');
+      const publishPrompt = buildPluginFolderAgentActionPrompt(FOLDER, 'publish');
+      for (const prompt of [contributePrompt, publishPrompt]) {
+        expect(prompt).toMatch(/--jq` flag bundled with gh|gh ships its own embedded library|gh \.\.\. --jq` is fine/i);
+      }
+    });
   });
 });
