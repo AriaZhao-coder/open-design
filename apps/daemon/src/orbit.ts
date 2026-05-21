@@ -61,6 +61,10 @@ export interface OrbitRunOptions {
   locale?: string | null;
 }
 
+interface NormalizedOrbitRunOptions {
+  locale: string | null;
+}
+
 export type OrbitRunHandler = (request: {
   runId: string;
   trigger: 'manual' | 'scheduled';
@@ -122,6 +126,10 @@ function normalizeOrbitLocale(locale: string | null | undefined): string | null 
     throw orbitLocaleError(normalized);
   }
   return normalized;
+}
+
+function normalizeOrbitRunOptions(options?: OrbitRunOptions): NormalizedOrbitRunOptions {
+  return { locale: normalizeOrbitLocale(options?.locale) };
 }
 
 function orbitLocaleLabel(locale: string): string {
@@ -496,8 +504,9 @@ export class OrbitService {
     trigger: 'manual' | 'scheduled',
     options?: OrbitRunOptions,
   ): Promise<{ projectId: string; agentRunId: string }> {
-    const locale = normalizeOrbitLocale(options?.locale);
-    const localeWasRequested = typeof options?.locale === 'string' && options.locale.trim().length > 0;
+    const runOptions = normalizeOrbitRunOptions(options);
+    const locale = runOptions.locale;
+    const localeWasRequested = locale !== null;
     if ((this.inflight || this.starting) && localeWasRequested && this.activeLocale !== locale) {
       throw orbitLocaleConflictError(this.activeLocale, locale);
     }
@@ -508,7 +517,7 @@ export class OrbitService {
     if (!this.runHandler) throw new Error('Orbit agent runner is not configured');
 
     this.activeLocale = locale;
-    this.starting = this.startRun(trigger, { ...options, locale }).finally(() => {
+    this.starting = this.startRun(trigger, runOptions).finally(() => {
       if (!this.inflight) this.activeLocale = null;
       this.starting = null;
     });
@@ -517,7 +526,7 @@ export class OrbitService {
 
   private async startRun(
     trigger: 'manual' | 'scheduled',
-    options?: OrbitRunOptions,
+    runOptions: NormalizedOrbitRunOptions,
   ): Promise<{ projectId: string; agentRunId: string }> {
     if (!this.runHandler) throw new Error('Orbit agent runner is not configured');
 
@@ -528,7 +537,6 @@ export class OrbitService {
       ? await this.templateResolver(configuredTemplateSkillId).catch(() => null)
       : null;
     const now = new Date(startedAt);
-    const runOptions: OrbitRunOptions = { locale: options?.locale ?? null };
     const prompt = buildOrbitPrompt(now, template, runOptions);
     const systemPrompt = buildOrbitSystemPrompt(now, template, runOptions);
     const handlerStart = await this.runHandler({
