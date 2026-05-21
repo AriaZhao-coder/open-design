@@ -324,7 +324,7 @@ if (args[0] === 'api' && args[1] === 'user') ok('test-user');
 if (args[0] === 'repo' && args[1] === 'create') ok('https://github.com/test-user/' + args[2]);
 if (args[0] === 'repo' && args[1] === 'view') {
   const repo = args[2] || '';
-  if (repo === 'test-user/sample-plugin') {
+  if (repo === 'test-user/sample-plugin' && !args.includes('--json')) {
     console.error('GraphQL: Could not resolve to a Repository with the name "test-user/sample-plugin".');
     process.exit(1);
   }
