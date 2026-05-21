@@ -103,7 +103,7 @@ export function AvatarMenu({
         <Icon name="chevron-down" size={10} />
       </button>
       {open ? (
-        <div className="avatar-popover" role="menu">
+        <div className="avatar-popover" role="dialog" aria-label={t('avatar.title')}>
           <div className="avatar-popover-head">
             <span className="who">
               {config.mode === 'daemon'

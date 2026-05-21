@@ -48,7 +48,27 @@ describe('AvatarMenu', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'avatar.title' })).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('uses dialog semantics because the popover contains form controls', () => {
+    render(
+      <AvatarMenu
+        config={config}
+        agents={[] as AgentInfo[]}
+        daemonLive
+        onModeChange={vi.fn()}
+        onAgentChange={vi.fn()}
+        onAgentModelChange={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onRefreshAgents={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'avatar.title' }));
+
+    expect(screen.getByRole('dialog', { name: 'avatar.title' })).toBeTruthy();
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
