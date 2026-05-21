@@ -33,6 +33,7 @@ export interface HeaderProps {
     | 'home'
     | 'product'
     | 'html-anything'
+    | 'library'
     | 'skills'
     | 'systems'
     | 'templates'
@@ -76,7 +77,6 @@ export function Header({
   const headerCopy = copy ?? getCommonCopy(locale).header;
   const href = (path: string) => localizedHref(path, locale);
   const homeBrandHref = brandHref === '/' ? href('/') : brandHref;
-  const contactHref = brandHref === '#top' ? '#contact' : href('/#contact');
   const productMenuCopy = getHeaderProductMenuCopy(locale);
 
   return (
@@ -84,13 +84,9 @@ export function Header({
       <div className='container nav-inner'>
         <a href={homeBrandHref} className='brand'>
           <span className='brand-mark'>
-            <img src='/logo.webp' alt='' width={36} height={36} />
+            <img src='/logo.webp' alt='' width={44} height={44} />
           </span>
           <span className='brand-name'>Open Design</span>
-          <span className='brand-meta'>
-            <b>{headerCopy.brandMetaTitle}</b>
-            {headerCopy.brandMetaBody}
-          </span>
         </a>
         {/*
           Mobile / tablet hamburger. Hidden by CSS at ≥1100px (the desktop
@@ -179,28 +175,87 @@ export function Header({
                 </li>
               </ul>
             </li>
-            <li>
-              <a href={href('/skills/')} className={linkClass('skills')}>
-                {headerCopy.nav.skills}
-                <span className='num'>{counts.skills}</span>
+            {/*
+              Library — catalog facets (Skills / Systems / Templates / Craft)
+              collapsed under one parent. Each row keeps its count badge
+              inside the panel and the trigger highlights when any of the
+              four facet pages is active. Same CSS-only :hover /
+              :focus-within mechanic from Product. Hardcoded "Library" /
+              "Learn" labels until per-locale translations land — the
+              brand-name pattern.
+            */}
+            <li className='has-dropdown'>
+              <a
+                href={href('/skills/')}
+                className={
+                  active === 'library' ||
+                  active === 'skills' ||
+                  active === 'systems' ||
+                  active === 'templates' ||
+                  active === 'craft'
+                    ? 'is-active'
+                    : undefined
+                }
+                aria-haspopup='true'
+                aria-expanded='false'
+              >
+                Library
+                <span className='dropdown-caret' aria-hidden='true'>▾</span>
               </a>
+              <ul className='nav-dropdown' role='menu'>
+                <li role='none'>
+                  <a
+                    role='menuitem'
+                    href={href('/skills/')}
+                    className={linkClass('skills')}
+                  >
+                    <span className='dropdown-name'>
+                      {headerCopy.nav.skills}
+                      <span className='dropdown-num'>{counts.skills}</span>
+                    </span>
+                  </a>
+                </li>
+                <li role='none'>
+                  <a
+                    role='menuitem'
+                    href={href('/systems/')}
+                    className={linkClass('systems')}
+                  >
+                    <span className='dropdown-name'>
+                      {headerCopy.nav.systems}
+                      <span className='dropdown-num'>{counts.systems}</span>
+                    </span>
+                  </a>
+                </li>
+                <li role='none'>
+                  <a
+                    role='menuitem'
+                    href={href('/templates/')}
+                    className={linkClass('templates')}
+                  >
+                    <span className='dropdown-name'>
+                      {headerCopy.nav.templates}
+                      <span className='dropdown-num'>{counts.templates}</span>
+                    </span>
+                  </a>
+                </li>
+                <li role='none'>
+                  <a
+                    role='menuitem'
+                    href={href('/craft/')}
+                    className={linkClass('craft')}
+                  >
+                    <span className='dropdown-name'>
+                      {headerCopy.nav.craft}
+                      <span className='dropdown-num'>{counts.craft}</span>
+                    </span>
+                  </a>
+                </li>
+              </ul>
             </li>
             <li>
-              <a href={href('/systems/')} className={linkClass('systems')}>
-                {headerCopy.nav.systems}
-                <span className='num'>{counts.systems}</span>
-              </a>
-            </li>
-            <li>
-              <a href={href('/templates/')} className={linkClass('templates')}>
-                {headerCopy.nav.templates}
-                <span className='num'>{counts.templates}</span>
-              </a>
-            </li>
-            <li>
-              <a href={href('/craft/')} className={linkClass('craft')}>
-                {headerCopy.nav.craft}
-                <span className='num'>{counts.craft}</span>
+              <a href={href('/tutorials/')} className={linkClass('tutorials')}>
+                Tutorials
               </a>
             </li>
             <li>
@@ -208,11 +263,12 @@ export function Header({
                 {headerCopy.nav.blog}
               </a>
             </li>
-            <li>
-              <a href={contactHref}>
-                {headerCopy.nav.contact}
-              </a>
-            </li>
+            {/*
+              Contact intentionally NOT exposed in the top nav: it's a
+              page-internal anchor (`#contact` on the homepage CTA section)
+              that the footer already surfaces. Keeping it out of the bar
+              frees a slot at narrow widths where the row was overflowing.
+            */}
           </ul>
         </nav>
         <div className='nav-side'>

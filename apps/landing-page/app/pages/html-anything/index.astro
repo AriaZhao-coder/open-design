@@ -682,11 +682,40 @@ const jsonLd: Array<Record<string, unknown>> = [
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     name: 'HTML Anything',
-    alternateName: copy.schemaAlternateName,
+    /*
+     * alternateName fed as an explicit array so Google understands the
+     * project is searched as: hyphenated, spaced, joined, capitalized
+     * variants, plus the tagline. Each entry is a real query users
+     * type — keeping them in this list signals canonical-name
+     * equivalence rather than leaving the matching to Google's
+     * tokenizer alone. Restored from PR #2566; do not route this
+     * through the generic locale schema field — it should stay as
+     * a literal array regardless of UI locale because these are
+     * proper-noun query variants.
+     */
+    alternateName: [
+      'html anything',
+      'html-anything',
+      'htmlanything',
+      'HTML Anything Editor',
+      'The agentic HTML editor',
+    ],
     applicationCategory: 'DeveloperApplication',
     operatingSystem: 'macOS, Linux, Windows',
     description,
-    url: HA_URL,
+    /*
+     * `url` is the canonical surface for this entity. JSON-LD lives on
+     * the landing page, so the landing page IS the canonical URL —
+     * Google attributes the SoftwareApplication entity to the page
+     * named by `url`. Pointing it at the GitHub repo would credit
+     * github.com/... as canonical, which is the opposite of what
+     * this SEO surface is supposed to do. The BreadcrumbList block
+     * below also uses the LP URL — keep both blocks aligned.
+     * Restored from PR #2586. The GitHub repo lives in `sameAs`
+     * below as a peer reference surface.
+     */
+    url: 'https://open-design.ai/html-anything/',
+    sameAs: [HA_URL],
     license: 'https://www.apache.org/licenses/LICENSE-2.0',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     author: {
