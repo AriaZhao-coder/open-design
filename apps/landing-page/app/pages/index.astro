@@ -349,8 +349,39 @@ const pageHtml = renderToStaticMarkup(
             .catch(() => {});
         };
 
+        // Hamburger menu toggle. Same logic as `header-enhancer.astro`
+        // (which sub-pages use); the homepage rolls its own inline
+        // script for the headroom + stars + wire-contributors flow,
+        // so this binding has to live here too. Without it, clicking
+        // the hamburger on `/` at narrow viewports does nothing —
+        // exactly the bug Joey screenshotted.
+        const enhanceHamburger = () => {
+          const toggle = document.querySelector('[data-nav-toggle]');
+          const primaryNav = document.querySelector('[data-nav-primary]');
+          const navEl = toggle ? toggle.closest('header.nav') : null;
+          if (!toggle || !primaryNav || !navEl) return;
+          const setOpen = (open) => {
+            navEl.classList.toggle('is-open', open);
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          };
+          toggle.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            setOpen(!navEl.classList.contains('is-open'));
+          });
+          primaryNav.querySelectorAll('a').forEach((link) => {
+            link.addEventListener('click', () => setOpen(false));
+          });
+          document.addEventListener('click', (ev) => {
+            if (!navEl.contains(ev.target)) setOpen(false);
+          });
+          document.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape') setOpen(false);
+          });
+        };
+
         const elements = document.querySelectorAll('[data-reveal]:not([data-revealed])');
         enhanceHeader();
+        enhanceHamburger();
         enhanceWire();
         if (elements.length === 0) return;
 
