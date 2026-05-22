@@ -960,7 +960,7 @@ function meaningfulDomFallbackTarget(el) {
 
   return true;
 }
-  function targetFrom(el, allowDomFallback, clickedEl){
+  function targetFrom(el, allowDomFallback, clickedEl, point){
     var id = el.getAttribute('data-od-id') || el.getAttribute('data-screen-label');
     var selector = annotatedSelectorFor(el);
     if (!id && allowDomFallback && meaningfulDomFallbackTarget(el)) {
@@ -980,6 +980,7 @@ function meaningfulDomFallbackTarget(el) {
       label: tag + cls,
       text: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 160),
       position: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+      hoverPoint: point ? { x: Math.round(point.x), y: Math.round(point.y) } : null,
       htmlHint: html.slice(0, 180),
       style: styleSnapshot(el)
     };
@@ -1188,7 +1189,7 @@ function meaningfulDomFallbackTarget(el) {
     if (!pickerActive()) return;
     var result = closestTarget(ev);
     if (!result) return;
-    var payload = targetFrom(result.target, commentEnabled && mode === 'picker' && !inspectEnabled);
+    var payload = targetFrom(result.target, commentEnabled && mode === 'picker' && !inspectEnabled, null, { x: ev.clientX, y: ev.clientY });
     if (!payload || payload.elementId === hoveredId) return;
     hoveredId = payload.elementId;
     window.parent.postMessage(Object.assign({}, payload, { type: 'od:comment-hover' }), '*');
@@ -1211,7 +1212,7 @@ function meaningfulDomFallbackTarget(el) {
     if (result) {
       ev.preventDefault();
       ev.stopPropagation();
-      var payload = targetFrom(result.target, commentEnabled && mode === 'picker' && !inspectEnabled, result.clicked);
+      var payload = targetFrom(result.target, commentEnabled && mode === 'picker' && !inspectEnabled, result.clicked, { x: ev.clientX, y: ev.clientY });
       if (payload) window.parent.postMessage(payload, '*');
       return;
     }

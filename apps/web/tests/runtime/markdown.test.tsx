@@ -95,6 +95,30 @@ describe('renderMarkdown', () => {
     });
   });
 
+  it('renders Codex code-comment directives as annotation cards', () => {
+    const out = html(
+      'Before\n' +
+        '::code-comment{title="[P2] Guard empty state" body="This should check the empty queue before reading the first task." file="/repo/apps/web/src/Chat.tsx" start=42 end=44 priority=2}\n' +
+        'After',
+    );
+
+    expect(out).toContain('Before');
+    expect(out).toContain('class="md-code-comment"');
+    expect(out).toContain('[P2] Guard empty state');
+    expect(out).toContain('This should check the empty queue before reading the first task.');
+    expect(out).toContain('/repo/apps/web/src/Chat.tsx:42-44');
+    expect(out).toContain('P2');
+    expect(out).toContain('After');
+    expect(out).not.toContain('::code-comment');
+  });
+
+  it('leaves malformed code-comment directives as text', () => {
+    const out = html('::code-comment{title="No file" body="Missing file"}');
+
+    expect(out).toContain('::code-comment');
+    expect(out).not.toContain('class="md-code-comment"');
+  });
+
   it('renders a GFM pipe table with header, body, and alignment', () => {
     const md = [
       '| L | C | R |',

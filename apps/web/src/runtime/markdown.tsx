@@ -32,8 +32,18 @@ type Block =
   | { kind: 'ul'; items: string[] }
   | { kind: 'ol'; items: string[] }
   | { kind: 'code'; lang: string | null; body: string }
+  | { kind: 'codeComment'; comment: CodeCommentDirective }
   | { kind: 'table'; aligns: TableAlign[]; headers: string[]; rows: string[][] }
   | { kind: 'hr' };
+
+interface CodeCommentDirective {
+  title: string;
+  body: string;
+  file: string;
+  start?: number;
+  end?: number;
+  priority?: number;
+}
 
 function splitTableCells(line: string): string[] {
   // Walk char-by-char so we can respect three GFM cell-content rules without
@@ -108,6 +118,12 @@ function parseBlocks(input: string): Block[] {
   while (i < lines.length) {
     const line = lines[i] ?? '';
     if (line.trim() === '') {
+      i++;
+      continue;
+    }
+    const codeComment = parseCodeCommentDirective(line);
+    if (codeComment) {
+      out.push({ kind: 'codeComment', comment: codeComment });
       i++;
       continue;
     }
@@ -187,6 +203,7 @@ function parseBlocks(input: string): Block[] {
       if (/^#{1,4}\s+/.test(next)) break;
       if (/^\s*[-*+]\s+/.test(next)) break;
       if (/^\s*\d+\.\s+/.test(next)) break;
+      if (parseCodeCommentDirective(next)) break;
       if (isTableStartAt(lines, i)) break;
       buf.push(next);
       i++;
@@ -231,6 +248,9 @@ function renderBlock(block: Block, key: number): ReactNode {
       />
     );
   }
+  if (block.kind === 'codeComment') {
+    return <CodeCommentBlock key={key} comment={block.comment} />;
+  }
   if (block.kind === 'table') {
     const { aligns, headers, rows } = block;
     const cellStyle = (idx: number): { textAlign: 'left' | 'right' | 'center' } | undefined => {
@@ -264,6 +284,75 @@ function renderBlock(block: Block, key: number): ReactNode {
     return <hr key={key} className="md-hr" />;
   }
   return null;
+}
+
+function parseCodeCommentDirective(line: string): CodeCommentDirective | null {
+  const match = /^\s*::code-comment\{([\s\S]*)\}\s*$/.exec(line);
+  if (!match) return null;
+  const attrs = parseDirectiveAttributes(match[1] ?? '');
+  const body = attrs.get('body')?.trim() ?? '';
+  const file = attrs.get('file')?.trim() ?? '';
+  if (!body || !file) return null;
+  const title = attrs.get('title')?.trim() || 'Code comment';
+  const start = parsePositiveInt(attrs.get('start'));
+  const end = parsePositiveInt(attrs.get('end'));
+  const priority = parsePositiveInt(attrs.get('priority'));
+  return {
+    title,
+    body,
+    file,
+    ...(start === undefined ? {} : { start }),
+    ...(end === undefined ? {} : { end }),
+    ...(priority === undefined ? {} : { priority }),
+  };
+}
+
+function parseDirectiveAttributes(raw: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  const attrRe = /([A-Za-z_][\w-]*)\s*=\s*("([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|[^\s}]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = attrRe.exec(raw))) {
+    const key = match[1]!;
+    const quoted = match[3] ?? match[4];
+    const value = quoted ?? match[2] ?? '';
+    attrs.set(key, unescapeDirectiveValue(value.replace(/^['"]|['"]$/g, '')));
+  }
+  return attrs;
+}
+
+function unescapeDirectiveValue(value: string): string {
+  return value.replace(/\\(["'\\])/g, '$1');
+}
+
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function CodeCommentBlock({ comment }: { comment: CodeCommentDirective }) {
+  const location = codeCommentLocation(comment);
+  return (
+    <article className="md-code-comment" data-priority={comment.priority ?? undefined}>
+      <div className="md-code-comment-head">
+        <span className="md-code-comment-icon" aria-hidden>!</span>
+        <strong>{renderInline(comment.title)}</strong>
+        {comment.priority ? (
+          <span className="md-code-comment-priority">P{comment.priority}</span>
+        ) : null}
+      </div>
+      <p className="md-code-comment-body">{renderInline(comment.body)}</p>
+      <code className="md-code-comment-file">{location}</code>
+    </article>
+  );
+}
+
+function codeCommentLocation(comment: CodeCommentDirective): string {
+  if (!comment.start) return comment.file;
+  if (comment.end && comment.end !== comment.start) {
+    return `${comment.file}:${comment.start}-${comment.end}`;
+  }
+  return `${comment.file}:${comment.start}`;
 }
 
 function MarkdownCodeBlock({ body, lang }: { body: string; lang: string | null }) {

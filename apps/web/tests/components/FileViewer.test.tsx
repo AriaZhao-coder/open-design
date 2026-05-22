@@ -81,7 +81,7 @@ function openManualTools() {
 }
 
 function openAgentTools() {
-  fireEvent.click(screen.getByRole('button', { name: 'Ask agent' }));
+  fireEvent.click(screen.getByRole('button', { name: 'More annotation tools' }));
 }
 
 function clickManualTool(testId: string) {
@@ -90,6 +90,10 @@ function clickManualTool(testId: string) {
 }
 
 function clickAgentTool(testId: string) {
+  if (testId === 'board-mode-toggle') {
+    fireEvent.click(screen.getByTestId(testId));
+    return;
+  }
   openAgentTools();
   fireEvent.click(screen.getByTestId(testId));
 }
@@ -1311,7 +1315,7 @@ describe('FileViewer tweaks toolbar', () => {
     });
   }
 
-  it('renders the toolbar Draw entry alongside restored Comment and Inspect entries', () => {
+  it('renders Comment as a primary toolbar entry and Sketch annotation under More', () => {
     render(
       <FileViewer projectId="project-1" projectKind="prototype" file={htmlPreviewFile()}
         liveHtml='<html><body><main data-od-id="hero">Hero</main></body></html>'
@@ -1321,11 +1325,13 @@ describe('FileViewer tweaks toolbar', () => {
     openManualTools();
     expect(screen.getByTestId('palette-tweaks-toggle')).toBeTruthy();
     expect(screen.getByTestId('inspect-mode-toggle')).toBeTruthy();
-    openAgentTools();
     expect(screen.getByTestId('board-mode-toggle')).toBeTruthy();
+    openAgentTools();
+    expect(screen.getByTestId('comment-mode-toggle')).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Region' })).toBeTruthy();
     expect(screen.getByTestId('draw-overlay-toggle')).toBeTruthy();
+    expect(screen.getByText('Sketch annotation')).toBeTruthy();
     expect(screen.queryByPlaceholderText('Type anywhere to add a note')).toBeNull();
-    expect(screen.queryByTestId('comment-mode-toggle')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Pods' })).toBeNull();
 
     fireEvent.click(screen.getByTestId('draw-overlay-toggle'));
@@ -1591,6 +1597,130 @@ describe('FileViewer tweaks toolbar', () => {
     expect(input.value).toBe('');
     expect(screen.queryByText('Remove')).toBeNull();
     expect(screen.queryByText('Do not resurrect this note')).toBeNull();
+  });
+
+  it('keeps the comment composer focused on the note after picking an element', async () => {
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={htmlPreviewFile()}
+        liveHtml='<html><body><main data-od-id="hero">Hero</main></body></html>'
+      />,
+    );
+
+    const frame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    clickAgentTool('board-mode-toggle');
+
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: {
+        type: 'od:comment-target',
+        elementId: 'hero',
+        selector: '[data-od-id="hero"]',
+        label: 'p',
+        text: 'Hero',
+        position: { x: 8, y: 12, width: 312, height: 63 },
+        htmlHint: '<p data-od-id="hero">Hero</p>',
+        style: {
+          color: 'rgb(26, 25, 22)',
+          fontSize: '13.5px',
+          fontFamily: 'Inter, "PingFang SC", sans-serif',
+          lineHeight: '20px',
+        },
+      },
+    }));
+
+    expect(await screen.findByTestId('comment-popover-input')).toBeTruthy();
+    expect(screen.queryByTestId('annotation-style-summary')).toBeNull();
+  });
+
+  it('returns to element picking from the More menu while commenting', async () => {
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={htmlPreviewFile()}
+        liveHtml='<html><body><main data-od-id="hero">Hero</main></body></html>'
+      />,
+    );
+
+    const frame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    clickAgentTool('board-mode-toggle');
+
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: {
+        type: 'od:comment-target',
+        elementId: 'hero',
+        selector: '[data-od-id="hero"]',
+        label: 'p',
+        text: 'Hero',
+        position: { x: 8, y: 12, width: 312, height: 63 },
+        htmlHint: '<p data-od-id="hero">Hero</p>',
+      },
+    }));
+
+    expect(await screen.findByTestId('comment-popover-input')).toBeTruthy();
+
+    openAgentTools();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pick element' }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('comment-popover-input')).toBeNull();
+    });
+    expect(screen.queryByRole('menuitem', { name: 'Pick element' })).toBeNull();
+    expect(screen.getByTestId('board-mode-toggle').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows captured element style details while hovering before clicking', async () => {
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={htmlPreviewFile()}
+        liveHtml='<html><body><main data-od-id="hero">Hero</main></body></html>'
+      />,
+    );
+
+    const frame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    clickAgentTool('board-mode-toggle');
+
+    const target = {
+      elementId: 'hero',
+      selector: '[data-od-id="hero"]',
+      label: 'p',
+      text: 'Hero',
+      position: { x: 8, y: 12, width: 312, height: 63 },
+      hoverPoint: { x: 200, y: 100 },
+      htmlHint: '<p data-od-id="hero">Hero</p>',
+      style: {
+        color: 'rgb(26, 25, 22)',
+        fontSize: '13.5px',
+        fontFamily: 'Inter, "PingFang SC", sans-serif',
+      },
+    };
+
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: { ...target, type: 'od:comment-hover' },
+    }));
+
+    const hover = await screen.findByTestId('annotation-hover-popover');
+    expect(hover.textContent).toContain('312x63');
+    expect(hover.textContent).toContain('#1A1916');
+    expect(hover.getAttribute('style')).toContain('214px');
+    expect(hover.getAttribute('style')).toContain('114px');
+    expect(screen.queryByTestId('comment-popover-input')).toBeNull();
+
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: { ...target, type: 'od:comment-target' },
+    }));
+
+    expect(await screen.findByTestId('comment-popover-input')).toBeTruthy();
+    expect(screen.getByTestId('comment-popover').getAttribute('style')).toContain('214px');
+    expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
   });
 
   it('closes an open saved-comment composer when that comment leaves the open state', async () => {

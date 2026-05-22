@@ -196,6 +196,16 @@ interface Props {
   onDeleteProject?: (id: string) => void;
 }
 
+interface QueuedChatSend {
+  id: string;
+  conversationId: string;
+  prompt: string;
+  attachments: ChatAttachment[];
+  commentAttachments: ChatCommentAttachment[];
+  meta?: ChatSendMeta;
+  createdAt: number;
+}
+
 let liveArtifactEventSequence = 0;
 const CHAT_PANEL_WIDTH_STORAGE_KEY = 'open-design.project.chatPanelWidth';
 const DEFAULT_CHAT_PANEL_WIDTH = 460;
@@ -615,6 +625,8 @@ export function ProjectView({
   const abortRef = useRef<AbortController | null>(null);
   const cancelRef = useRef<AbortController | null>(null);
   const streamingConversationIdRef = useRef<string | null>(null);
+  const [queuedChatSends, setQueuedChatSends] = useState<QueuedChatSend[]>([]);
+  const queuedChatSendsRef = useRef<QueuedChatSend[]>([]);
   const sendTextBufferRef = useRef<BufferedTextUpdates | null>(null);
   const reattachTextBuffersRef = useRef<Set<BufferedTextUpdates>>(new Set());
   const reattachControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -660,6 +672,8 @@ export function ProjectView({
   useEffect(() => {
     setChatSeed(null);
     setAutoAuditRepairSeed(null);
+    queuedChatSendsRef.current = [];
+    setQueuedChatSends([]);
   }, [project.id]);
   // Monotonic token bumped on every `conversation-created` refresh dispatch.
   // Two rapid events (e.g. concurrent routine runs against the same reused
@@ -687,9 +701,13 @@ export function ProjectView({
     || currentConversationStreaming
     || currentConversationHasActiveRun;
   const currentConversationSendDisabled = currentConversationLoading
-    || currentConversationHasActiveRun
     || failedMessagesConversationId === activeConversationId;
   const currentConversationActionDisabled = currentConversationBusy || currentConversationSendDisabled;
+  const currentConversationQueuedItems = activeConversationId
+    ? queuedChatSends
+        .filter((item) => item.conversationId === activeConversationId)
+        .map((item) => ({ id: item.id, prompt: item.prompt }))
+    : [];
   // Disabled during a resume too: an in-flight handoff synthesis ends in
   // its own createConversation, so a concurrent "New conversation" click
   // would spawn a second conversation behind the resumed one.
@@ -2018,6 +2036,26 @@ export function ProjectView({
     onProjectsRefresh,
   ]);
 
+  const enqueueChatSend = useCallback((item: QueuedChatSend) => {
+    const next = [...queuedChatSendsRef.current, item];
+    queuedChatSendsRef.current = next;
+    setQueuedChatSends(next);
+  }, []);
+
+  const removeQueuedChatSend = useCallback((id: string) => {
+    const next = queuedChatSendsRef.current.filter((item) => item.id !== id);
+    queuedChatSendsRef.current = next;
+    setQueuedChatSends(next);
+  }, []);
+
+  const updateQueuedChatSend = useCallback((id: string, prompt: string) => {
+    const next = queuedChatSendsRef.current.map((item) =>
+      item.id === id ? { ...item, prompt } : item,
+    );
+    queuedChatSendsRef.current = next;
+    setQueuedChatSends(next);
+  }, []);
+
   const handleSend = useCallback(
     async (
       prompt: string,
@@ -2025,12 +2063,24 @@ export function ProjectView({
       commentAttachments: ChatCommentAttachment[] = commentsToAttachments(attachedComments),
       meta?: ChatSendMeta,
       baseMessages?: ChatMessage[],
+      options?: { bypassQueue?: boolean },
     ) => {
       const historyBase = baseMessages ?? messages;
       if (!activeConversationId) return;
       if (messagesConversationIdRef.current !== activeConversationId) return;
-      if (currentConversationBusy) return;
       if (!prompt.trim() && attachments.length === 0 && commentAttachments.length === 0) return;
+      if (currentConversationBusy && !options?.bypassQueue) {
+        enqueueChatSend({
+          id: randomUUID(),
+          conversationId: activeConversationId,
+          prompt,
+          attachments,
+          commentAttachments,
+          ...(meta === undefined ? {} : { meta }),
+          createdAt: Date.now(),
+        });
+        return;
+      }
       setChatSeed(null);
       const runConversationId = activeConversationId;
       setError(null);
@@ -2584,6 +2634,7 @@ export function ProjectView({
       attachedComments,
       activeConversationId,
       currentConversationBusy,
+      enqueueChatSend,
       messages,
       config,
       agentsById,
@@ -2607,6 +2658,43 @@ export function ProjectView({
       onProjectChange,
     ],
   );
+
+  const sendQueuedChatSendNow = useCallback((id: string) => {
+    const item = queuedChatSendsRef.current.find((candidate) => candidate.id === id);
+    if (!item) return;
+    removeQueuedChatSend(id);
+    void handleSend(
+      item.prompt,
+      item.attachments,
+      item.commentAttachments,
+      item.meta,
+      undefined,
+      { bypassQueue: true },
+    );
+  }, [handleSend, removeQueuedChatSend]);
+
+  useEffect(() => {
+    if (!activeConversationId) return;
+    if (currentConversationBusy) return;
+    if (messagesConversationIdRef.current !== activeConversationId) return;
+    const next = queuedChatSendsRef.current.find(
+      (item) => item.conversationId === activeConversationId,
+    );
+    if (!next) return;
+    removeQueuedChatSend(next.id);
+    void handleSend(
+      next.prompt,
+      next.attachments,
+      next.commentAttachments,
+      next.meta,
+    );
+  }, [
+    activeConversationId,
+    currentConversationBusy,
+    queuedChatSends,
+    handleSend,
+    removeQueuedChatSend,
+  ]);
 
   useEffect(() => {
     if (!autoAuditRepairSeed) return;
@@ -3691,6 +3779,7 @@ export function ProjectView({
                 type="button"
                 className="project-settings-trigger"
                 data-testid="project-settings-trigger"
+                data-tooltip={t('designs.menuMore')}
                 title={t('designs.menuMore')}
                 aria-label={t('designs.menuMore')}
                 aria-haspopup="dialog"
@@ -3953,6 +4042,7 @@ export function ProjectView({
               messages={messages}
               streaming={currentConversationStreaming}
               sendDisabled={currentConversationSendDisabled}
+              queuedItems={currentConversationQueuedItems}
               error={conversationLoadError ?? error ?? audioVoiceOptionsError}
               projectId={project.id}
               projectKindForTracking={projectKindToTracking(project.metadata?.kind)}
@@ -3968,6 +4058,9 @@ export function ProjectView({
               onDeleteComment={(commentId) => void removePreviewComment(commentId)}
               onSend={handleSend}
               onStop={handleStop}
+              onRemoveQueuedSend={removeQueuedChatSend}
+              onUpdateQueuedSend={updateQueuedChatSend}
+              onSendQueuedNow={sendQueuedChatSendNow}
               onRequestOpenFile={requestOpenFile}
               onRequestPluginFolderAgentAction={handlePluginFolderAgentAction}
               onEditUserMessage={handleEditAndResendUserMessage}

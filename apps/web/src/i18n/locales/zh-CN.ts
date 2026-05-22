@@ -1411,7 +1411,7 @@ export const zhCN: Dict = {
   'fileViewer.preview': '预览',
   'fileViewer.source': '代码',
   'fileViewer.tweaks': '调整',
-  'fileViewer.comment': '评论',
+  'fileViewer.comment': '注释',
   'fileViewer.edit': '编辑',
   'fileViewer.draw': '绘制',
   'manualEdit.layers': "Layers",

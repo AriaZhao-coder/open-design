@@ -861,21 +861,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           }
 
           if (detail.action === 'send') {
-            if (streaming) {
-              if (uploaded.length > 0) setStaged((s) => [...s, ...uploaded]);
-              if (visualAttachmentInput) {
-                setStagedVisualComments((current) => [
-                  ...current,
-                  buildVisualAnnotationAttachment({
-                    ...visualAttachmentInput!,
-                    order: commentAttachments.length + current.length + 1,
-                  }),
-                ]);
-              }
-              if (detail.note) setDraft((d) => (d ? `${d}\n${detail.note}` : detail.note));
-              textareaRef.current?.focus();
-              return;
-            }
             if (visualAttachmentInput) {
               visualAttachment = buildVisualAnnotationAttachment({
                 ...visualAttachmentInput,
@@ -1062,14 +1047,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       const hatched = expandHatchCommand(prompt);
       const nextCommentAttachments = currentCommentAttachments();
       if (hatched) {
-        if (streaming) return;
         onSend(hatched, staged, nextCommentAttachments, contextMeta);
         reset();
         return;
       }
       const search = researchAvailable ? expandSearchCommand(prompt) : null;
       if (search) {
-        if (streaming) return;
         onSend(search.prompt, staged, nextCommentAttachments, {
           ...contextMeta,
           research: { enabled: true, query: search.query },
@@ -1077,7 +1060,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         reset();
         return;
       }
-      if ((!prompt && staged.length === 0 && nextCommentAttachments.length === 0) || streaming) return;
+      if (!prompt && staged.length === 0 && nextCommentAttachments.length === 0) return;
       onSend(prompt, staged, nextCommentAttachments, contextMeta);
       reset();
     }
@@ -1153,6 +1136,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           .filter((s) => skillMatchesQuery(s, mentionQuery))
           .sort((a, b) => skillMentionRank(a, mentionQuery) - skillMentionRank(b, mentionQuery))
       : [];
+    const hasComposerPayload =
+      draft.trim().length > 0 || staged.length > 0 || currentCommentAttachments().length > 0;
+    const showStopButton = streaming && !hasComposerPayload;
+    const showSendButton = !streaming || hasComposerPayload;
 
     return (
       <div
@@ -1570,7 +1557,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               )}
             </button>
             <span className="composer-spacer" />
-            {streaming ? (
+            {showStopButton ? (
               <button
                 type="button"
                 className="composer-send stop"
@@ -1580,7 +1567,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               >
                 <Icon name="stop" size={13} />
               </button>
-            ) : (
+            ) : null}
+            {showSendButton ? (
               <button
                 type="button"
                 className="composer-send"
@@ -1593,16 +1581,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   });
                   void submit();
                 }}
-                disabled={
-                  sendDisabled ||
-                  (!draft.trim() && staged.length === 0 && currentCommentAttachments().length === 0)
-                }
+                disabled={sendDisabled || !hasComposerPayload}
                 aria-label={t('chat.send')}
                 title={t('chat.send')}
               >
                 <Icon name="arrow-up" size={15} />
               </button>
-            )}
+            ) : null}
           </div>
         </div>
         {uploadError ? <span className="composer-hint">{uploadError}</span> : null}

@@ -1014,7 +1014,7 @@ export const zhTW: Dict = {
   'fileViewer.preview': '預覽',
   'fileViewer.source': '程式碼',
   'fileViewer.tweaks': '調整',
-  'fileViewer.comment': '評論',
+  'fileViewer.comment': '註解',
   'fileViewer.edit': '編輯',
   'fileViewer.draw': '繪製',
   'manualEdit.layers': "Layers",

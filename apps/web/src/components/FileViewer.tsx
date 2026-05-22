@@ -93,7 +93,7 @@ import {
   type PreviewCommentSnapshot,
 } from '../comments';
 import { applyPodMemberRemoval } from '../lib/pod-members';
-import { BoardComposerPopover } from './BoardComposerPopover';
+import { AnnotationHoverPopover, BoardComposerPopover } from './BoardComposerPopover';
 import type {
   ChatCommentAttachment,
   PreviewComment,
@@ -2935,6 +2935,7 @@ function buildPodSnapshot(input: {
     text: snapshot.text,
     position: snapshot.position,
     htmlHint: snapshot.htmlHint,
+    style: snapshot.style,
   }));
   const summary = selected
     .slice(0, 3)
@@ -3116,6 +3117,34 @@ function finiteBridgeInteger(value: unknown): number | undefined {
   if (!Number.isFinite(value)) return undefined;
   return clampBridgeCoordinate(value);
 }
+
+function normalizeAnnotationStyle(input: unknown): PreviewCommentSnapshot['style'] {
+  if (!input || typeof input !== 'object') return undefined;
+  const raw = input as Record<string, unknown>;
+  const style: NonNullable<PreviewCommentSnapshot['style']> = {};
+  for (const key of ANNOTATION_STYLE_KEYS) {
+    const value = raw[key];
+    if (typeof value !== 'string') continue;
+    const trimmed = value.replace(/\s+/g, ' ').trim();
+    if (trimmed) style[key] = trimmed.slice(0, 120);
+  }
+  return Object.keys(style).length > 0 ? style : undefined;
+}
+
+const ANNOTATION_STYLE_KEYS = [
+  'color',
+  'backgroundColor',
+  'fontSize',
+  'fontWeight',
+  'lineHeight',
+  'textAlign',
+  'fontFamily',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+  'paddingLeft',
+  'borderRadius',
+] as const;
 
 function clampBridgeCoordinate(value: unknown): number {
   const numeric = Number(value);
@@ -4336,6 +4365,7 @@ function HtmlViewer({
             height: clampBridgeCoordinate(item?.position?.height),
           },
           htmlHint: String(item?.htmlHint || ''),
+          style: normalizeAnnotationStyle(item?.style),
           selectionKind: 'element',
           memberCount: undefined,
         });
@@ -4435,7 +4465,14 @@ function HtmlViewer({
         width: clampBridgeCoordinate(data.position?.width),
         height: clampBridgeCoordinate(data.position?.height),
       },
+      hoverPoint: data.hoverPoint
+        ? {
+            x: clampBridgeCoordinate(data.hoverPoint.x),
+            y: clampBridgeCoordinate(data.hoverPoint.y),
+          }
+        : undefined,
       htmlHint: String(data.htmlHint || ''),
+      style: normalizeAnnotationStyle(data.style),
       selectionKind: data.selectionKind === 'pod' ? 'pod' : 'element',
       memberCount: finiteBridgeInteger(data.memberCount),
       podMembers: Array.isArray(data.podMembers) ? data.podMembers : undefined,
@@ -5312,6 +5349,13 @@ function HtmlViewer({
     if (nextTool) setBoardTool(nextTool);
   }
 
+  function activateBoardPicker(nextTool: BoardTool) {
+    clearBoardComposer();
+    fireArtifactToolbarClick(nextTool === 'pod' ? 'pods' : 'comment');
+    activateBoard(nextTool);
+    setAgentToolsOpen(false);
+  }
+
   function clearBoardComposer() {
     setActiveCommentTarget(null);
     setHoveredCommentTarget(null);
@@ -5664,6 +5708,80 @@ function HtmlViewer({
               <div className="artifact-tool-menu-anchor">
                 <button
                   type="button"
+                  className={`viewer-action viewer-action-icon viewer-comment-toggle${boardMode ? ' active' : ''}`}
+                  data-testid="board-mode-toggle"
+                  data-tooltip={t('fileViewer.comment')}
+                  title={t('fileViewer.comment')}
+                  aria-label={t('fileViewer.comment')}
+                  aria-pressed={boardMode}
+                  onClick={activateCommentTool}
+                >
+                  <Icon name="comment" size={14} />
+                  {boardMode ? <span className="viewer-action-active-dot" aria-hidden /> : null}
+                </button>
+              </div>
+              <div className="artifact-tool-menu-anchor">
+                <button
+                  type="button"
+                  className={`viewer-action viewer-action-icon artifact-tool-menu-trigger${drawOverlayOpen ? ' active' : ''}`}
+                  aria-haspopup="menu"
+                  aria-expanded={agentToolsOpen}
+                  aria-label="More annotation tools"
+                  data-tooltip="More"
+                  title="More"
+                  onClick={() => {
+                    setAgentToolsOpen((v) => !v);
+                    setManualToolsOpen(false);
+                    setPalettePopoverOpen(false);
+                  }}
+                >
+                  <Icon name="more-horizontal" size={15} />
+                </button>
+                {agentToolsOpen ? (
+                  <div className="artifact-tool-menu" role="menu" aria-label="More annotation tools">
+                    <button
+                      className={`artifact-tool-menu-item${boardMode && boardTool === 'inspect' ? ' active' : ''}`}
+                      type="button"
+                      data-testid="comment-mode-toggle"
+                      title="Pick one element"
+                      role="menuitem"
+                      aria-label="Pick element"
+                      aria-pressed={boardMode && boardTool === 'inspect'}
+                      onClick={() => activateBoardPicker('inspect')}
+                    >
+                      <Icon name="edit" size={13} />
+                      <span>Pick element</span>
+                    </button>
+                    <button
+                      className={`artifact-tool-menu-item${boardMode && boardTool === 'pod' ? ' active' : ''}`}
+                      type="button"
+                      title="Draw a region annotation"
+                      role="menuitem"
+                      aria-label="Region"
+                      aria-pressed={boardMode && boardTool === 'pod'}
+                      onClick={() => activateBoardPicker('pod')}
+                    >
+                      <Icon name="draw" size={13} />
+                      <span>Region</span>
+                    </button>
+                    <button
+                      className={`artifact-tool-menu-item${drawOverlayOpen ? ' active' : ''}`}
+                      type="button"
+                      data-testid="draw-overlay-toggle"
+                      title="Sketch annotation"
+                      role="menuitem"
+                      aria-pressed={drawOverlayOpen}
+                      onClick={activateDrawTool}
+                    >
+                      <Icon name="draw" size={13} />
+                      <span>Sketch annotation</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="artifact-tool-menu-anchor">
+                <button
+                  type="button"
                   className={`viewer-action artifact-tool-menu-trigger${
                     selectedPalette || palettePopoverOpen || inspectMode || manualEditMode ? ' active' : ''
                   }`}
@@ -5777,50 +5895,6 @@ function HtmlViewer({
                   onClose={() => setPalettePopoverOpen(false)}
                 />
               </div>
-              <div className="artifact-tool-menu-anchor">
-                <button
-                  type="button"
-                  className={`viewer-action artifact-tool-menu-trigger${boardMode || drawOverlayOpen ? ' active' : ''}`}
-                  aria-haspopup="menu"
-                  aria-expanded={agentToolsOpen}
-                  onClick={() => {
-                    setAgentToolsOpen((v) => !v);
-                    setManualToolsOpen(false);
-                    setPalettePopoverOpen(false);
-                  }}
-                >
-                  <span>Ask agent</span>
-                  <Icon name="chevron-right" size={13} style={{ transform: 'rotate(90deg)' }} />
-                </button>
-                {agentToolsOpen ? (
-                  <div className="artifact-tool-menu" role="menu" aria-label="Ask agent tools">
-                    <button
-                      type="button"
-                      className={`artifact-tool-menu-item${boardMode ? ' active' : ''}`}
-                      data-testid="board-mode-toggle"
-                      title={t('fileViewer.comment')}
-                      role="menuitem"
-                      aria-pressed={boardMode}
-                      onClick={activateCommentTool}
-                    >
-                      <Icon name="comment" size={13} />
-                      <span>{t('fileViewer.comment')}</span>
-                    </button>
-                    <button
-                      className={`artifact-tool-menu-item${drawOverlayOpen ? ' active' : ''}`}
-                      type="button"
-                      data-testid="draw-overlay-toggle"
-                      title="Draw note"
-                      role="menuitem"
-                      aria-pressed={drawOverlayOpen}
-                      onClick={activateDrawTool}
-                    >
-                      <Icon name="draw" size={13} />
-                      <span>Draw note</span>
-                    </button>
-                  </div>
-                ) : null}
-              </div>
             </>
           ) : null}
           {!showPreviewToolbarControls ? (
@@ -5835,36 +5909,6 @@ function HtmlViewer({
               <Icon name="comment" size={13} />
               <span>{t('fileViewer.comment')}</span>
             </button>
-          ) : null}
-          {boardMode ? (
-            <>
-              <button
-                className={`viewer-action${boardTool === 'inspect' ? ' active' : ''}`}
-                type="button"
-                data-testid="comment-mode-toggle"
-                title="Pick one element"
-                aria-label="Picker"
-                aria-pressed={boardTool === 'inspect'}
-                onClick={() => activateBoard('inspect')}
-              >
-                <Icon name="edit" size={13} />
-                <span>Picker</span>
-              </button>
-              <button
-                className={`viewer-action${boardTool === 'pod' ? ' active' : ''}`}
-                type="button"
-                title="Draw a pod selection"
-                aria-label="Pods"
-                aria-pressed={boardTool === 'pod'}
-                onClick={() => {
-                  fireArtifactToolbarClick('pods');
-                  activateBoard('pod');
-                }}
-              >
-                <Icon name="draw" size={13} />
-                <span>Pods</span>
-              </button>
-            </>
           ) : null}
         </div>
       </div>
@@ -6299,7 +6343,11 @@ function HtmlViewer({
                 onHoverMember={setHoveredPodMemberId}
                 sending={sendingBoardBatch || streaming}
                 t={t}
+                scale={overlayPreviewScale}
               />
+            ) : null}
+            {boardMode && !activeCommentTarget && hoveredCommentTarget ? (
+              <AnnotationHoverPopover target={hoveredCommentTarget} scale={overlayPreviewScale} />
             ) : null}
             {boardMode ? (
               <CommentSidePanel
@@ -6335,6 +6383,7 @@ function HtmlViewer({
                     text: comment.text,
                     position: comment.position,
                     htmlHint: comment.htmlHint,
+                    style: comment.style,
                     selectionKind: comment.selectionKind ?? 'element',
                     memberCount: comment.memberCount,
                     podMembers: comment.podMembers,
@@ -6412,7 +6461,7 @@ function HtmlViewer({
                 and bails — clicks no-op silently. The static copy made
                 this look broken; the empty-state copy explains what's
                 missing and how to fix it. Mirrored across Inspect and
-                Picker because the failure surface is identical.
+                element-pick annotation mode because the failure surface is identical.
             */}
             {(inspectMode || (boardMode && boardTool === 'inspect'))
               && openHintBox
@@ -6432,7 +6481,7 @@ function HtmlViewer({
                     This artifact has no <code>data-od-id</code>{' '}
                     annotations yet — ask the agent to add them to the
                     sections you want to{' '}
-                    {inspectMode ? 'inspect' : 'comment on'}.
+                    {inspectMode ? 'inspect' : 'annotate'}.
                   </div>
                 ) : (
                   <div
@@ -6440,7 +6489,7 @@ function HtmlViewer({
                     data-testid="inspect-empty-hint"
                   >
                     Click any element with <code>data-od-id</code> to{' '}
-                    {inspectMode ? 'tune its style' : 'leave a comment'}.
+                    {inspectMode ? 'tune its style' : 'add an annotation'}.
                   </div>
                 )}
                 <button

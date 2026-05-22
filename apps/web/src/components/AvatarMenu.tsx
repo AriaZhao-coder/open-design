@@ -92,6 +92,7 @@ export function AvatarMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        data-tooltip={t('avatar.title')}
         title={t('avatar.title')}
         aria-label={t('avatar.title')}
       >
