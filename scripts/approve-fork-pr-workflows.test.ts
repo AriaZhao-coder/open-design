@@ -589,6 +589,49 @@ test("waitForPendingApprovalRuns keeps polling until the run set is stable, even
   assert.equal(sleeps.length, 10);
 });
 
+test("waitForPendingApprovalRuns gives late first appearances their own full settling window", async () => {
+  const ciRun = {
+    id: 26273463769,
+    name: "CI",
+    event: "pull_request",
+    status: "completed",
+    conclusion: "action_required",
+    head_sha: "734076155c44e569304856590019cea54506fdab",
+    path: ".github/workflows/ci.yml@main",
+    pull_requests: [],
+  };
+  const visualRun = {
+    id: 26273463770,
+    name: "Visual PR Verify",
+    event: "pull_request",
+    status: "completed",
+    conclusion: "action_required",
+    head_sha: "734076155c44e569304856590019cea54506fdab",
+    path: ".github/workflows/visual-pr-verify.yml@main",
+    pull_requests: [],
+  };
+
+  const batches = [[], [], [], [ciRun], [ciRun], [ciRun, visualRun], [ciRun, visualRun], [ciRun, visualRun]];
+  const sleeps: number[] = [];
+  let now = 0;
+
+  const pendingRuns = await waitForPendingApprovalRuns(
+    async () => batches.shift() ?? [ciRun, visualRun],
+    async (ms) => {
+      sleeps.push(ms);
+      now += ms;
+    },
+    () => now,
+    {
+      firstAppearanceTimeoutMs: 12_000,
+      settlingWindowMs: 9_000,
+    },
+  );
+
+  assert.deepEqual(pendingRuns, [ciRun, visualRun]);
+  assert.deepEqual(sleeps, [3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000]);
+});
+
 test("waitForPendingApprovalRuns keeps polling until the first run appears, even after the old short retry budget", async () => {
   const run = {
     id: 26273463769,
@@ -619,7 +662,7 @@ test("waitForPendingApprovalRuns keeps polling until the first run appears, even
   );
 
   assert.deepEqual(pendingRuns, [run]);
-  assert.deepEqual(sleeps, [3000, 3000, 3000, 3000, 3000]);
+  assert.deepEqual(sleeps, [3000, 3000, 3000, 3000, 3000, 3000]);
 });
 
 test("waitForPendingApprovalRuns accepts a configurable longer polling budget before the first run appears", async () => {

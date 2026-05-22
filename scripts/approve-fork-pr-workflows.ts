@@ -221,20 +221,19 @@ export async function waitForPendingApprovalRuns(
     await collectRuns();
   }
 
-  let stableSince = pendingRuns.length > 0 ? now() : null;
+  let settlingDeadline = pendingRuns.length > 0 ? now() + settlingWindowMs : null;
   let lastPendingRunSetSignature = pendingRunSetSignature(pendingRuns);
 
-  while (pendingRuns.length > 0 && now() < firstAppearanceDeadline) {
-    if (stableSince !== null && now() - stableSince >= settlingWindowMs) {
-      break;
-    }
+  while (pendingRuns.length > 0 && settlingDeadline !== null && now() < settlingDeadline) {
 
     await sleep(pollIntervalMs);
     const previousPendingRunSetSignature = lastPendingRunSetSignature;
     await collectRuns();
 
     lastPendingRunSetSignature = pendingRunSetSignature(pendingRuns);
-    stableSince = lastPendingRunSetSignature === previousPendingRunSetSignature ? stableSince : now();
+    if (lastPendingRunSetSignature !== previousPendingRunSetSignature) {
+      settlingDeadline = now() + settlingWindowMs;
+    }
   }
 
   return pendingRuns;
