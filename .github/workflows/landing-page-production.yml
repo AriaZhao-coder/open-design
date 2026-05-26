@@ -40,6 +40,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+        with:
+          # Production always ships `main`. workflow_dispatch can be launched
+          # from any ref via the Actions "Use workflow from" dropdown, so pin
+          # the checkout to main — the deployed artifact must equal reviewed
+          # main, never whatever branch/tag the operator happened to select.
+          ref: main
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
