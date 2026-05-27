@@ -34,3 +34,51 @@
 /fa/plugins/*  /plugins/:splat  301
 /hu/plugins/*  /plugins/:splat  301
 /th/plugins/*  /plugins/:splat  301
+
+# Skills and Craft retired from the public plugins catalogue (per the
+# product trim that left only Templates + Design Systems). Their hub
+# pages used to live at `/plugins/skills/` and `/plugins/craft/` plus
+# locale-prefixed variants `/{locale}/plugins/skills/` etc. Send all
+# inbound links — Google, sharebacks, the in-app catalog row that
+# pre-dates this trim — to the new `/plugins/` root so visitors land
+# somewhere reasonable instead of a 404. Order matters: the more
+# specific locale-prefixed lines must come before the unprefixed
+# fallback so Cloudflare Pages preserves the locale on the redirect
+# target.
+/zh/plugins/skills/*     /zh/plugins/     301
+/zh-tw/plugins/skills/*  /zh-tw/plugins/  301
+/ja/plugins/skills/*     /ja/plugins/     301
+/ko/plugins/skills/*     /ko/plugins/     301
+/de/plugins/skills/*     /de/plugins/     301
+/fr/plugins/skills/*     /fr/plugins/     301
+/ru/plugins/skills/*     /ru/plugins/     301
+/es/plugins/skills/*     /es/plugins/     301
+/pt-br/plugins/skills/*  /pt-br/plugins/  301
+/it/plugins/skills/*     /it/plugins/     301
+/vi/plugins/skills/*     /vi/plugins/     301
+/pl/plugins/skills/*     /pl/plugins/     301
+/id/plugins/skills/*     /id/plugins/     301
+/nl/plugins/skills/*     /nl/plugins/     301
+/ar/plugins/skills/*     /ar/plugins/     301
+/tr/plugins/skills/*     /tr/plugins/     301
+/uk/plugins/skills/*     /uk/plugins/     301
+/plugins/skills/*        /plugins/        301
+
+/zh/plugins/craft/*     /zh/plugins/     301
+/zh-tw/plugins/craft/*  /zh-tw/plugins/  301
+/ja/plugins/craft/*     /ja/plugins/     301
+/ko/plugins/craft/*     /ko/plugins/     301
+/de/plugins/craft/*     /de/plugins/     301
+/fr/plugins/craft/*     /fr/plugins/     301
+/ru/plugins/craft/*     /ru/plugins/     301
+/es/plugins/craft/*     /es/plugins/     301
+/pt-br/plugins/craft/*  /pt-br/plugins/  301
+/it/plugins/craft/*     /it/plugins/     301
+/vi/plugins/craft/*     /vi/plugins/     301
+/pl/plugins/craft/*     /pl/plugins/     301
+/id/plugins/craft/*     /id/plugins/     301
+/nl/plugins/craft/*     /nl/plugins/     301
+/ar/plugins/craft/*     /ar/plugins/     301
+/tr/plugins/craft/*     /tr/plugins/     301
+/uk/plugins/craft/*     /uk/plugins/     301
+/plugins/craft/*        /plugins/        301

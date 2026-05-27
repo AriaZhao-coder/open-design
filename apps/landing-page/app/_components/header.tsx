@@ -212,28 +212,10 @@ export function Header({
                 <li role='none'>
                   <a
                     role='menuitem'
-                    href={href('/plugins/skills/')}
-                    className={linkClass('skills')}
-                  >
-                    <span className='dropdown-name'>{headerCopy.nav.skills}</span>
-                  </a>
-                </li>
-                <li role='none'>
-                  <a
-                    role='menuitem'
                     href={href('/plugins/systems/')}
                     className={linkClass('systems')}
                   >
                     <span className='dropdown-name'>{headerCopy.nav.systems}</span>
-                  </a>
-                </li>
-                <li role='none'>
-                  <a
-                    role='menuitem'
-                    href={href('/plugins/craft/')}
-                    className={linkClass('craft')}
-                  >
-                    <span className='dropdown-name'>{headerCopy.nav.craft}</span>
                   </a>
                 </li>
               </ul>
