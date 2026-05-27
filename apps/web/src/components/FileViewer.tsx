@@ -4985,6 +4985,18 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
         ));
         return;
       }
+      if (data.type === 'od:comment-active-target-update') {
+        const snapshot = snapshotFromData(data);
+        if (!snapshot.elementId) return;
+        setLiveCommentTargets((current) => new Map(current).set(snapshot.elementId, snapshot));
+        setActiveCommentTarget((current) => (
+          current && current.elementId === snapshot.elementId ? snapshot : current
+        ));
+        setHoveredCommentTarget((current) => (
+          current && current.elementId === snapshot.elementId ? snapshot : current
+        ));
+        return;
+      }
       if (data.type === 'od:comment-leave') {
         setHoveredCommentTarget(null);
         return;
@@ -5054,6 +5066,15 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [activeCommentTarget, boardMode, boardTool, commentPortalHost, file.name, isOurPreviewIframeSource, previewComments]);
+
+  useEffect(() => {
+    if (!boardMode || !activeCommentTarget || activeCommentTarget.selectionKind === 'pod') return;
+    iframeRef.current?.contentWindow?.postMessage({
+      type: 'od:comment-active-target',
+      elementId: activeCommentTarget.elementId,
+      selector: activeCommentTarget.selector,
+    }, '*');
+  }, [activeCommentTarget?.elementId, activeCommentTarget?.selector, activeCommentTarget?.selectionKind, boardMode]);
 
   useEffect(() => {
     if (!manualEditMode) {
@@ -5998,7 +6019,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       setCommentPanelOpen(true);
       setCommentSidePanelCollapsed(false);
       setCommentCreateMode(true);
-      clearBoardComposer();
+      if (!activeCommentTarget) clearBoardComposer();
       setInspectMode(false);
       setDrawOverlayOpen(false);
       setMode('preview');
@@ -6370,6 +6391,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       bounds={previewBodySize}
       docked={false}
       targetVisible={activeCommentTargetVisible}
+      commenting={commentCreateMode}
     />
   ) : null;
   const commentSidePanel = commentPanelOpen ? (

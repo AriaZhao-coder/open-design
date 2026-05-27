@@ -1101,6 +1101,9 @@ function meaningfulDomFallbackTarget(el) {
   }
   var postTargetsPending = false;
   var postPreviewScrollPending = false;
+  var postActiveTargetPending = false;
+  var activeCommentElementId = null;
+  var activeCommentSelector = null;
   function previewScrollElement(){
     return document.querySelector('.design-canvas') || document.scrollingElement || document.documentElement;
   }
@@ -1128,6 +1131,8 @@ function meaningfulDomFallbackTarget(el) {
     window.parent.postMessage({ type: 'od:preview-scroll-request' }, '*');
   }
   function scrollCommentTargetIntoView(data){
+    activeCommentElementId = data.elementId ? String(data.elementId) : activeCommentElementId;
+    activeCommentSelector = data.selector ? String(data.selector) : activeCommentSelector;
     var el = null;
     if (data.selector) {
       try { el = document.querySelector(String(data.selector)); } catch (_) { el = null; }
@@ -1141,9 +1146,38 @@ function meaningfulDomFallbackTarget(el) {
     if (!el || typeof el.scrollIntoView !== 'function') return;
     el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
     window.setTimeout(function(){
+      schedulePostActiveCommentTarget();
       schedulePostTargets();
       schedulePostPreviewScroll();
     }, 120);
+  }
+  function findCommentTargetByIdentity(elementId, selector){
+    var el = null;
+    if (selector) {
+      try { el = document.querySelector(String(selector)); } catch (_) { el = null; }
+    }
+    if (!el && elementId) {
+      try {
+        var id = String(elementId).replace(/"/g, '\\"');
+        el = document.querySelector('[data-od-id="' + id + '"], [data-screen-label="' + id + '"]');
+      } catch (_) { el = null; }
+    }
+    return el;
+  }
+  function postActiveCommentTarget(){
+    if (!active() || !activeCommentElementId) return;
+    var el = findCommentTargetByIdentity(activeCommentElementId, activeCommentSelector);
+    if (!el) return;
+    var payload = targetFrom(el, commentEnabled && mode === 'picker' && !inspectEnabled);
+    if (payload) window.parent.postMessage(Object.assign({}, payload, { type: 'od:comment-active-target-update' }), '*');
+  }
+  function schedulePostActiveCommentTarget(){
+    if (!active() || !activeCommentElementId || postActiveTargetPending) return;
+    postActiveTargetPending = true;
+    window.requestAnimationFrame(function(){
+      postActiveTargetPending = false;
+      postActiveCommentTarget();
+    });
   }
   function postTargets(){
     if (!active()) return;
@@ -1219,7 +1253,11 @@ function meaningfulDomFallbackTarget(el) {
       document.documentElement.toggleAttribute('data-od-comment-mode', commentEnabled);
       document.documentElement.setAttribute('data-od-comment-mode-kind', mode);
       if (active()) setTimeout(postTargets, 0);
-      else hoveredId = null;
+      else {
+        hoveredId = null;
+        activeCommentElementId = null;
+        activeCommentSelector = null;
+      }
       if (!commentEnabled || mode !== 'pod') {
         drawing = false;
         stroke = [];
@@ -1237,6 +1275,12 @@ function meaningfulDomFallbackTarget(el) {
     }
     if (data.type === 'od:comment-scroll-to-target') {
       scrollCommentTargetIntoView(data);
+      return;
+    }
+    if (data.type === 'od:comment-active-target') {
+      activeCommentElementId = data.elementId ? String(data.elementId) : null;
+      activeCommentSelector = data.selector ? String(data.selector) : null;
+      schedulePostActiveCommentTarget();
       return;
     }
     if (data.type === 'od:inspect-mode') {
@@ -1325,7 +1369,11 @@ function meaningfulDomFallbackTarget(el) {
       var commentPickerClick = commentEnabled && mode === 'picker' && !inspectEnabled;
       var clickPoint = commentPickerClick ? { x: ev.clientX, y: ev.clientY } : null;
       var payload = targetFrom(result.target, commentPickerClick, result.clicked, clickPoint);
-      if (payload) window.parent.postMessage(payload, '*');
+      if (payload) {
+        activeCommentElementId = payload.elementId || activeCommentElementId;
+        activeCommentSelector = payload.selector || activeCommentSelector;
+        window.parent.postMessage(payload, '*');
+      }
       return;
     }
     // Free-pin fallback (comment mode only). Lets users drop a comment
@@ -1397,6 +1445,7 @@ function meaningfulDomFallbackTarget(el) {
   document.addEventListener('pointercancel', finishStroke, true);
   window.addEventListener('resize', schedulePostTargets);
   document.addEventListener('scroll', function(){
+    schedulePostActiveCommentTarget();
     schedulePostTargets();
     schedulePostPreviewScroll();
   }, true);

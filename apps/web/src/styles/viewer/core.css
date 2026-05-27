@@ -1155,6 +1155,18 @@
 .annotation-hover-popover {
   pointer-events: none;
 }
+.comment-popover-section {
+  min-width: 0;
+}
+.comment-popover-section + .comment-popover-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+.comment-popover-section-params {
+  display: grid;
+  gap: 8px;
+}
 .annotation-style-summary {
   display: grid;
   gap: 8px;
