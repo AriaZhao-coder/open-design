@@ -157,6 +157,10 @@ export type TrackingCliProviderId =
   | 'kilo'
   | 'other';
 
+export type TrackingFeedbackProviderId =
+  | TrackingCliProviderId
+  | TrackingByokProviderId;
+
 export type TrackingArtifactKind =
   | 'html'
   | 'markdown'
@@ -1850,7 +1854,7 @@ export interface FeedbackSubmitResultProps {
   assistant_message_id: string;
   run_id: string;
   model_id: string | null;
-  agent_provider_id: TrackingCliProviderId | null;
+  agent_provider_id: TrackingFeedbackProviderId | null;
   rating: 'positive' | 'negative';
   reason?: string;
   reason_count: number;
@@ -2096,6 +2100,27 @@ export function agentIdToTracking(agentId: string | null | undefined): TrackingC
       return 'kilo';
     default:
       return 'other';
+  }
+}
+
+export function feedbackAgentProviderIdToTracking(
+  agentId: string | null | undefined,
+): TrackingFeedbackProviderId | null {
+  switch (agentId) {
+    case 'anthropic-api':
+      return byokProtocolToTracking('anthropic');
+    case 'openai-api':
+      return byokProtocolToTracking('openai');
+    case 'azure-openai-api':
+      return byokProtocolToTracking('azure');
+    case 'google-gemini-api':
+      return byokProtocolToTracking('google');
+    case 'ollama-cloud-api':
+      return byokProtocolToTracking('ollama');
+    case 'senseaudio-api':
+      return byokProtocolToTracking('senseaudio');
+    default:
+      return agentId ? agentIdToTracking(agentId) : null;
   }
 }
 

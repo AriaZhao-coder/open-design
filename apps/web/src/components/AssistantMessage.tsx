@@ -20,7 +20,7 @@ import {
   trackFeedbackSubmitResult,
 } from "../analytics/events";
 import {
-  agentIdToTracking,
+  feedbackAgentProviderIdToTracking,
   normalizeCustomReason,
   type TrackingFeedbackReasonCode,
   type TrackingFeedbackRatingWithNone,
@@ -646,7 +646,7 @@ export function AssistantMessage({
                 runId={message.runId ?? null}
                 assistantMessageId={message.id}
                 modelId={assistantFeedbackModelId(message)}
-                agentProviderId={message.agentId ? agentIdToTracking(message.agentId) : null}
+                agentProviderId={feedbackAgentProviderIdToTracking(message.agentId)}
                 producedFileCount={displayedProduced.length}
                 hasDesignSystemContext={hasDesignSystemContext}
                 footerProps={{
@@ -870,7 +870,7 @@ function AssistantFeedback({
   runId: string | null;
   assistantMessageId: string;
   modelId: string | null;
-  agentProviderId: ReturnType<typeof agentIdToTracking> | null;
+  agentProviderId: ReturnType<typeof feedbackAgentProviderIdToTracking>;
   producedFileCount: number;
 }) {
   const t = useT();

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantMessage } from '../../src/components/AssistantMessage';
 import type { ChatMessage } from '../../src/types';
 
@@ -32,6 +32,10 @@ beforeEach(() => {
   analyticsMocks.track.mockReset();
 });
 
+afterEach(() => {
+  cleanup();
+});
+
 function assistantMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: 'assistant-1',
@@ -48,10 +52,10 @@ function assistantMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 describe('AssistantMessage feedback analytics', () => {
-  it('includes model and agent provider on feedback_submit_result', async () => {
+  async function submitHelpfulFeedback(message: ChatMessage) {
     render(
       <AssistantMessage
-        message={assistantMessage()}
+        message={message}
         streaming={false}
         projectId="project-1"
         projectKind="prototype"
@@ -68,9 +72,25 @@ describe('AssistantMessage feedback analytics', () => {
       ([event]) => event === 'feedback_submit_result',
     );
     expect(resultCall).toBeTruthy();
-    expect(resultCall?.[1]).toMatchObject({
+    return resultCall?.[1];
+  }
+
+  it('includes model and CLI provider on feedback_submit_result', async () => {
+    const resultProps = await submitHelpfulFeedback(assistantMessage());
+    expect(resultProps).toMatchObject({
       model_id: 'claude-sonnet-4-6',
       agent_provider_id: 'claude_code',
+    });
+  });
+
+  it('maps API-mode agent ids on feedback_submit_result', async () => {
+    const resultProps = await submitHelpfulFeedback(assistantMessage({
+      agentId: 'anthropic-api',
+      agentName: 'Anthropic API · claude-sonnet-4-6',
+    }));
+    expect(resultProps).toMatchObject({
+      model_id: 'claude-sonnet-4-6',
+      agent_provider_id: 'anthropic',
     });
   });
 });
