@@ -270,6 +270,23 @@ describe('workspace state API helpers', () => {
     expect(response.currentWorkspaceId).toBe('local-personal');
   });
 
+  it('surfaces workspace list failures instead of fabricating a local workspace', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: { message: 'workspace store unavailable' },
+    }), { status: 500 })));
+
+    await expect(listWorkspaces()).rejects.toThrow('workspace store unavailable');
+  });
+
+  it('rejects malformed workspace list responses without anonymous fallback state', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      workspaces: [],
+      currentWorkspaceId: 'local-personal',
+    }), { status: 200 })));
+
+    await expect(listWorkspaces()).rejects.toThrow('Workspace list response did not include any workspaces.');
+  });
+
   it('falls back to a browser-origin share URL when old daemons omit shareUrl', async () => {
     window.history.replaceState(null, '', 'http://localhost:3000/');
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({

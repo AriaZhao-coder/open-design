@@ -1519,6 +1519,60 @@ describe('GET /api/projects/:id resolvedDir', () => {
     expect(legacyDeleteBody.error?.message).toMatch(/read-only/i);
   });
 
+  it('rolls back a template-created project when seeding files fails', async () => {
+    const projectId = `proj-template-seed-source-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Template seed source',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const dataDir = process.env.OD_DATA_DIR;
+    if (!dataDir) throw new Error('OD_DATA_DIR is required for daemon route tests');
+    const templateId = `template-bad-seed-${Date.now()}`;
+    const db = new Database(path.join(dataDir, 'app.sqlite'));
+    try {
+      db.prepare(
+        `INSERT INTO templates (id, name, description, source_project_id, files_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(
+        templateId,
+        'Bad seed template',
+        null,
+        projectId,
+        JSON.stringify([{ name: '../escape.html', content: '<!doctype html>' }]),
+        Date.now(),
+      );
+    } finally {
+      db.close();
+    }
+
+    const cloneId = `${projectId}-clone`;
+    const cloneResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: cloneId,
+        name: 'Bad seed clone',
+        skillId: null,
+        designSystemId: null,
+        metadata: { kind: 'template', templateId },
+      }),
+    });
+    expect(cloneResp.status).toBe(500);
+    const cloneBody = (await cloneResp.json()) as { error?: { code?: string } };
+    expect(cloneBody.error?.code).toBe('TEMPLATE_SEED_FAILED');
+
+    const cloneDetailResp = await fetch(`${baseUrl}/api/projects/${cloneId}`);
+    expect(cloneDetailResp.status).toBe(404);
+  });
+
   it('blocks deleting projects that still have reuse routines and removes sourced templates on delete', async () => {
     const workspaceResp = await fetch(`${baseUrl}/api/workspaces`, {
       method: 'POST',

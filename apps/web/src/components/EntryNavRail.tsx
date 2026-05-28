@@ -163,11 +163,14 @@ export function EntryNavRail({
         <div className="entry-nav-workspace">
           <button
             type="button"
-            className="entry-nav-rail__logo"
-            onClick={() => setWorkspaceOpen((open) => !open)}
-            aria-label={currentWorkspace?.name ?? brandLabel}
-            aria-expanded={workspaceOpen}
-            data-tooltip={currentWorkspace?.name ?? brandLabel}
+            className={`entry-nav-rail__logo${isHome ? ' is-active' : ''}`}
+            onClick={() => {
+              setWorkspaceOpen(false);
+              onViewChange('home');
+            }}
+            aria-label={brandLabel}
+            aria-current={isHome ? 'page' : undefined}
+            data-tooltip={brandLabel}
             data-testid="entry-nav-logo"
           >
             <img
@@ -176,6 +179,17 @@ export function EntryNavRail({
               className="entry-nav-rail__logo-img"
               draggable={false}
             />
+          </button>
+          <button
+            type="button"
+            className={`entry-nav-rail__btn entry-workspace-trigger${workspaceOpen ? ' is-active' : ''}`}
+            onClick={() => setWorkspaceOpen((open) => !open)}
+            aria-label={`Switch workspace: ${currentWorkspace?.name ?? 'Workspace'}`}
+            aria-expanded={workspaceOpen}
+            data-tooltip={currentWorkspace?.name ?? 'Workspace'}
+            data-testid="entry-workspace-trigger"
+          >
+            <Icon name="layers-filled" size={17} />
           </button>
           {workspaceOpen ? (
             <div className="entry-workspace-popover">

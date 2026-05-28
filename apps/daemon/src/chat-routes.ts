@@ -496,9 +496,13 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
   // POST /api/projects/:projectId/critique/:runId/interrupt
   // Cascades an AbortController to the in-flight orchestrator for the given run.
+  const critiqueInterruptHandler = handleCritiqueInterrupt(db, critiqueRunRegistry);
   app.post(
     '/api/projects/:projectId/critique/:runId/interrupt',
-    handleCritiqueInterrupt(db, critiqueRunRegistry),
+    (req, res) => {
+      if (!projectIsAccessibleToLocalUser(req.params.projectId, res)) return;
+      critiqueInterruptHandler(req, res);
+    },
   );
 
   // GET /api/projects/:projectId/critique/:runId/artifact
@@ -509,12 +513,16 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   //
   // Response cap is threaded from cfg.parserMaxBlockBytes so a row that
   // the orchestrator + writer accepted is always retrievable.
+  const critiqueArtifactHandler = handleCritiqueArtifact(db, {
+    artifactsRoot: critiqueArtifactsRoot,
+    responseCapBytes: critiqueResponseCapBytes,
+  });
   app.get(
     '/api/projects/:projectId/critique/:runId/artifact',
-    handleCritiqueArtifact(db, {
-      artifactsRoot: critiqueArtifactsRoot,
-      responseCapBytes: critiqueResponseCapBytes,
-    }),
+    (req, res) => {
+      if (!projectIsAccessibleToLocalUser(req.params.projectId, res)) return;
+      critiqueArtifactHandler(req, res);
+    },
   );
 
   // ---- API Proxy (SSE) for API-compatible endpoints ------------------------

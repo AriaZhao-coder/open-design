@@ -223,9 +223,23 @@ describe('App connectors settings flows', () => {
     mockedLoadConfig.mockReturnValue({ ...baseConfig });
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({}),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url === '/api/workspaces') {
+          return new Response(JSON.stringify({
+            workspaces: [{
+              id: 'local-personal',
+              name: 'Personal Workspace',
+              kind: 'local',
+              currentUserRole: 'owner',
+              createdAt: 1,
+              updatedAt: 1,
+            }],
+            currentWorkspaceId: 'local-personal',
+            currentUserId: 'local-user',
+          }), { status: 200 });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
       }),
     );
   });
@@ -248,6 +262,27 @@ describe('App connectors settings flows', () => {
     await waitFor(() => {
       expect(screen.getByText('Composio tail: uQEg')).toBeTruthy();
     });
+  });
+
+  it('shows a retryable workspace load failure instead of anonymous workspace state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url === '/api/workspaces') {
+          return new Response(JSON.stringify({
+            error: { message: 'workspace store unavailable' },
+          }), { status: 500 });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Could not load workspaces')).toBeTruthy();
+    expect(screen.getByText('workspace store unavailable')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
   });
 
   it('does not show first-run privacy consent until daemon config hydration finishes', async () => {

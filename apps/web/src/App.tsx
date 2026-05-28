@@ -228,6 +228,7 @@ export function App() {
   const workspaceDataRequestRef = useRef(0);
   const workspaceSelectionRequestRef = useRef(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [promptTemplates, setPromptTemplates] = useState<
     PromptTemplateSummary[]
@@ -399,6 +400,41 @@ export function App() {
     return true;
   }, []);
 
+  const messageFromError = useCallback((error: unknown, fallback: string) => {
+    return error instanceof Error && error.message ? error.message : fallback;
+  }, []);
+
+  const applyWorkspacesResponse = useCallback((result: { workspaces: Workspace[]; currentWorkspaceId: string; currentUserId: string }) => {
+    const nextWorkspaceId = result.workspaces.some((workspace) => workspace.id === result.currentWorkspaceId)
+      ? result.currentWorkspaceId
+      : result.workspaces[0]?.id;
+    if (!nextWorkspaceId) {
+      throw new Error('Workspace list response did not include any workspaces.');
+    }
+    setWorkspaces(result.workspaces);
+    setCurrentUserId(result.currentUserId);
+    setCurrentWorkspaceId(nextWorkspaceId);
+    setWorkspaceLoadError(null);
+    return nextWorkspaceId;
+  }, []);
+
+  const reloadWorkspaces = useCallback(async () => {
+    setWorkspaceLoadError(null);
+    setProjectsLoading(true);
+    try {
+      const result = await listWorkspaces();
+      const nextWorkspaceId = applyWorkspacesResponse(result);
+      await loadWorkspaceDataFor(nextWorkspaceId);
+    } catch (err) {
+      setWorkspaceLoadError(messageFromError(err, 'Could not load workspaces.'));
+      setWorkspaces([]);
+      setCurrentUserId(null);
+      setProjects([]);
+      setTemplates([]);
+      setProjectsLoading(false);
+    }
+  }, [applyWorkspacesResponse, loadWorkspaceDataFor, messageFromError]);
+
   // Bootstrap — detect daemon, then fan out independent fetches so each
   // entry-view tab can render the moment its own data lands. Earlier this
   // was one Promise.all behind a global "Loading workspace…" placeholder,
@@ -463,13 +499,16 @@ export function App() {
 
       void listWorkspaces().then((result) => {
         if (cancelled) return;
-        const nextWorkspaceId = result.workspaces.some((workspace) => workspace.id === result.currentWorkspaceId)
-          ? result.currentWorkspaceId
-          : result.workspaces[0]?.id ?? 'local-personal';
-        setWorkspaces(result.workspaces);
-        setCurrentUserId(result.currentUserId);
-        setCurrentWorkspaceId(nextWorkspaceId);
+        const nextWorkspaceId = applyWorkspacesResponse(result);
         void loadWorkspaceDataFor(nextWorkspaceId, () => cancelled);
+      }).catch((err) => {
+        if (cancelled) return;
+        setWorkspaceLoadError(messageFromError(err, 'Could not load workspaces.'));
+        setWorkspaces([]);
+        setCurrentUserId(null);
+        setProjects([]);
+        setTemplates([]);
+        setProjectsLoading(false);
       });
 
       void fetchPromptTemplates().then((list) => {
@@ -567,7 +606,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [loadWorkspaceDataFor]);
+  }, [applyWorkspacesResponse, loadWorkspaceDataFor, messageFromError]);
 
   // Auto-pick the first available agent once both the daemon-stored config
   // and the agents listing have landed. Splitting this out of bootstrap
@@ -1507,6 +1546,16 @@ export function App() {
         canDeployWorkspaceArtifacts={activeProjectWorkspaceRole === 'owner' || activeProjectWorkspaceRole === 'admin'}
       />
     );
+  } else if (workspaceLoadError && workspaces.length === 0) {
+    appMain = (
+      <WorkspaceLoadFailure
+        message={workspaceLoadError}
+        retrying={projectsLoading}
+        onRetry={() => {
+          void reloadWorkspaces();
+        }}
+      />
+    );
   } else {
     appMain = (
       <EntryView
@@ -1619,7 +1668,18 @@ export function App() {
             route={route}
             projects={projects}
           />
-          <div className="workspace-shell__body">{appMain}</div>
+          <div className="workspace-shell__body">
+            {workspaceLoadError && workspaces.length > 0 ? (
+              <div className="workspace-load-error" role="alert">
+                <strong>Could not refresh workspaces.</strong>
+                <span>{workspaceLoadError}</span>
+                <button type="button" className="ghost" onClick={() => void reloadWorkspaces()}>
+                  Retry
+                </button>
+              </div>
+            ) : null}
+            {appMain}
+          </div>
         </div>
       )}
       <PetOverlay
@@ -1695,6 +1755,29 @@ export function App() {
         />
       ) : null}
     </>
+  );
+}
+
+function WorkspaceLoadFailure({
+  message,
+  retrying,
+  onRetry,
+}: {
+  message: string;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <main className="workspace-load-failure" role="alert">
+      <div>
+        <p className="kicker">WORKSPACES</p>
+        <h1>Could not load workspaces</h1>
+        <p>{message}</p>
+      </div>
+      <button type="button" className="primary" disabled={retrying} onClick={onRetry}>
+        {retrying ? 'Retrying...' : 'Retry'}
+      </button>
+    </main>
   );
 }
 

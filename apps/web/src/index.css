@@ -510,6 +510,56 @@ code {
   min-height: 0;
   overflow: hidden;
 }
+.workspace-load-error {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  max-width: min(720px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger-border, #f2b8b5);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.16);
+  color: var(--text);
+}
+.workspace-load-error span {
+  color: var(--text-muted);
+}
+.workspace-load-failure {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 32px;
+  background: var(--bg-app);
+  color: var(--text);
+}
+.workspace-load-failure > div {
+  max-width: 520px;
+}
+.workspace-load-failure h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.workspace-load-failure p {
+  margin: 0;
+  color: var(--text-muted);
+}
+.workspace-load-failure .kicker {
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
 .workspace-shell__body > .app,
 .workspace-shell__body > .entry-shell {
   height: 100%;

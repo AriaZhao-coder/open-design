@@ -185,6 +185,14 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     return fallbackWorkspaceId;
   }
 
+  async function rollbackCreatedProject(projectId: string) {
+    db.transaction(() => {
+      db.prepare(`DELETE FROM workspace_activity WHERE target_type = 'project' AND target_id = ?`).run(projectId);
+      dbDeleteProject(db, projectId);
+    })();
+    await removeProjectDir(PROJECTS_DIR, projectId).catch(() => {});
+  }
+
   function getAccessibleProject(projectId: string, res: any) {
     const project = getProject(db, projectId);
     if (!project) {
@@ -500,26 +508,33 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       ) {
         const tpl = sourceTemplate;
         if (tpl && Array.isArray(tpl.files) && tpl.files.length > 0) {
-          await ensureProject(PROJECTS_DIR, id);
-          for (const f of tpl.files) {
-            if (
-              !f ||
-              typeof f.name !== 'string' ||
-              typeof f.content !== 'string'
-            ) {
-              continue;
-            }
-            try {
+          try {
+            await ensureProject(PROJECTS_DIR, id);
+            for (const f of tpl.files) {
+              if (
+                !f ||
+                typeof f.name !== 'string' ||
+                typeof f.content !== 'string'
+              ) {
+                throw new Error('template contains an invalid file entry');
+              }
               await writeProjectFile(
                 PROJECTS_DIR,
                 id,
                 f.name,
                 Buffer.from(f.content, 'utf8'),
               );
-            } catch {
-              // Skip individual file failures — the template snapshot is
-              // best-effort; the agent still has the embedded copy.
             }
+          } catch (seedError) {
+            await rollbackCreatedProject(id);
+            return sendApiError(
+              res,
+              500,
+              'TEMPLATE_SEED_FAILED',
+              seedError instanceof Error
+                ? `Could not seed template files: ${seedError.message}`
+                : 'Could not seed template files.',
+            );
           }
         }
       }

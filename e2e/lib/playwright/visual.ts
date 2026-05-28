@@ -33,6 +33,21 @@ const MOCK_AGENT = {
   models: [{ id: 'default', label: 'Default' }],
 } as const;
 
+const VISUAL_WORKSPACES_RESPONSE = {
+  workspaces: [
+    {
+      id: 'local-personal',
+      name: 'Personal Workspace',
+      kind: 'local',
+      currentUserRole: 'owner',
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  ],
+  currentWorkspaceId: 'local-personal',
+  currentUserId: 'local-user',
+} as const;
+
 const VISUAL_PROJECTS = [
   {
     id: 'visual-project-launchpad',
@@ -149,6 +164,10 @@ export async function configureVisualPage(page: Page, options: VisualPageOptions
     await fulfillGet(route, { agents: [MOCK_AGENT] });
   });
 
+  await page.route('**/api/workspaces', async (route) => {
+    await fulfillGet(route, VISUAL_WORKSPACES_RESPONSE);
+  });
+
   await page.route(VISUAL_GITHUB_REPO_API, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
@@ -160,12 +179,12 @@ export async function configureVisualPage(page: Page, options: VisualPageOptions
     });
   });
 
-  await page.route('**/api/projects', async (route) => {
-    await fulfillGet(route, { projects });
+  await page.route('**/api/projects**', async (route) => {
+    await fulfillGetPath(route, '/api/projects', { projects });
   });
 
-  await page.route('**/api/routines', async (route) => {
-    await fulfillGet(route, { routines: [] });
+  await page.route('**/api/routines**', async (route) => {
+    await fulfillGetPath(route, '/api/routines', { routines: [] });
   });
 
   await page.route('**/api/automation-templates', async (route) => {
@@ -237,8 +256,8 @@ export async function configureVisualPage(page: Page, options: VisualPageOptions
     await fulfillGet(route, { skills: [] });
   });
 
-  await page.route('**/api/design-templates', async (route) => {
-    await fulfillGet(route, { designTemplates: [] });
+  await page.route('**/api/design-templates**', async (route) => {
+    await fulfillGetPath(route, '/api/design-templates', { designTemplates: [] });
   });
 
   await page.route('**/api/prompt-templates', async (route) => {
@@ -317,6 +336,14 @@ async function fulfillGet(route: Route, json: unknown): Promise<void> {
   }
 
   await route.fulfill({ json });
+}
+
+async function fulfillGetPath(route: Route, pathname: string, json: unknown): Promise<void> {
+  if (new URL(route.request().url()).pathname !== pathname) {
+    await route.continue();
+    return;
+  }
+  await fulfillGet(route, json);
 }
 
 function makeVisualPlugin(input: {

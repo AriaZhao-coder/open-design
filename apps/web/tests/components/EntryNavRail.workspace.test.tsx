@@ -60,7 +60,7 @@ describe('EntryNavRail workspace popover', () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-logo'));
+    fireEvent.click(screen.getByTestId('entry-workspace-trigger'));
     const invite = screen.getByRole('button', { name: 'Invite members' }) as HTMLButtonElement;
     expect(invite.disabled).toBe(true);
 
@@ -97,7 +97,7 @@ describe('EntryNavRail workspace popover', () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-logo'));
+    fireEvent.click(screen.getByTestId('entry-workspace-trigger'));
     fireEvent.click(screen.getByRole('button', { name: 'Invite members' }));
 
     await waitFor(() => {
@@ -154,7 +154,7 @@ describe('EntryNavRail workspace popover', () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-logo'));
+    fireEvent.click(screen.getByTestId('entry-workspace-trigger'));
     fireEvent.click(screen.getByRole('button', { name: 'Invite members' }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Creating invite...' })).toBeTruthy();
@@ -200,7 +200,7 @@ describe('EntryNavRail workspace popover', () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-logo'));
+    fireEvent.click(screen.getByTestId('entry-workspace-trigger'));
     const workspaceSelect = screen.getByRole('combobox') as HTMLSelectElement;
     fireEvent.change(workspaceSelect, { target: { value: 'team-1' } });
 
@@ -240,7 +240,7 @@ describe('EntryNavRail workspace popover', () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-logo'));
+    fireEvent.click(screen.getByTestId('entry-workspace-trigger'));
     const workspaceSelect = screen.getByRole('combobox') as HTMLSelectElement;
     fireEvent.change(workspaceSelect, { target: { value: 'team-1' } });
 
@@ -280,7 +280,7 @@ describe('EntryNavRail workspace popover', () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId('entry-nav-logo'));
+    fireEvent.click(screen.getByTestId('entry-workspace-trigger'));
     expect((screen.getByRole('button', { name: 'Invite members' }) as HTMLButtonElement).disabled).toBe(true);
     expect(onCreateWorkspaceInvite).not.toHaveBeenCalled();
   });

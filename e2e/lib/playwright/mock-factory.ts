@@ -35,9 +35,24 @@ const STANDARD_MOCK_AGENT = {
   models: [{ id: 'default', label: 'Default' }],
 };
 
+const STANDARD_WORKSPACES_RESPONSE = {
+  workspaces: [
+    {
+      id: 'local-personal',
+      name: 'Personal Workspace',
+      kind: 'local',
+      currentUserRole: 'owner',
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  ],
+  currentWorkspaceId: 'local-personal',
+  currentUserId: 'local-user',
+};
+
 /**
  * Seed localStorage with the standard daemon/mock-agent config and intercept
- * /api/agents and /api/app-config GET with deterministic fixtures.
+ * /api/agents, /api/app-config, and /api/workspaces GET with deterministic fixtures.
  *
  * Call this from beforeEach for tests that don't need a custom agent or
  * protocol setup. Tests that need custom agents/config should call the
@@ -47,6 +62,7 @@ export async function applyStandardMocks(page: Page): Promise<void> {
   await applyStorageConfig(page);
   await routeMockAgents(page);
   await routeAppConfig(page);
+  await routeWorkspaces(page);
 }
 
 /** Seed localStorage with the standard config only (no route interception). */
@@ -77,5 +93,16 @@ export async function routeMockAgents(page: Page): Promise<void> {
       return;
     }
     await route.fulfill({ json: { agents: [STANDARD_MOCK_AGENT] } });
+  });
+}
+
+/** Intercept GET /api/workspaces with a single local personal workspace. */
+export async function routeWorkspaces(page: Page): Promise<void> {
+  await page.route('**/api/workspaces', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({ json: STANDARD_WORKSPACES_RESPONSE });
   });
 }

@@ -31,44 +31,34 @@ import type {
   WorkspacesResponse,
 } from '@open-design/contracts';
 
-const fallbackWorkspace: Workspace = {
-  id: 'local-personal',
-  name: 'Personal Workspace',
-  kind: 'local',
-  currentUserRole: 'owner',
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-};
-
 export type WorkspaceOperationResult<T = true> =
   | { ok: true; value: T }
   | { ok: false; error: string };
 
-function fallbackWorkspacesResponse(): WorkspacesResponse {
-  return {
-    workspaces: [fallbackWorkspace],
-    currentWorkspaceId: fallbackWorkspace.id,
-    currentUserId: 'anonymous',
-  };
+export class WorkspaceListError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkspaceListError';
+  }
 }
 
 function normalizeWorkspacesResponse(value: WorkspacesResponse): WorkspacesResponse {
   if (!Array.isArray(value.workspaces) || value.workspaces.length === 0) {
-    return fallbackWorkspacesResponse();
+    throw new WorkspaceListError('Workspace list response did not include any workspaces.');
   }
   const currentWorkspaceId =
     typeof value.currentWorkspaceId === 'string' && value.currentWorkspaceId
       ? value.currentWorkspaceId
       : value.workspaces[0]!.id;
+  if (typeof value.currentUserId !== 'string' || !value.currentUserId) {
+    throw new WorkspaceListError('Workspace list response did not include the current user.');
+  }
   return {
     workspaces: value.workspaces,
     currentWorkspaceId: value.workspaces.some((workspace) => workspace.id === currentWorkspaceId)
       ? currentWorkspaceId
       : value.workspaces[0]!.id,
-    currentUserId:
-      typeof value.currentUserId === 'string' && value.currentUserId
-        ? value.currentUserId
-        : 'anonymous',
+    currentUserId: value.currentUserId,
   };
 }
 
@@ -114,13 +104,11 @@ function networkError(fallback: string): WorkspaceOperationResult<never> {
 }
 
 export async function listWorkspaces(): Promise<WorkspacesResponse> {
-  try {
-    const resp = await fetch('/api/workspaces');
-    if (!resp.ok) throw new Error('workspace list failed');
-    return normalizeWorkspacesResponse((await resp.json()) as WorkspacesResponse);
-  } catch {
-    return fallbackWorkspacesResponse();
+  const resp = await fetch('/api/workspaces');
+  if (!resp.ok) {
+    throw new WorkspaceListError(await readApiError(resp, 'Could not load workspaces.'));
   }
+  return normalizeWorkspacesResponse((await resp.json()) as WorkspacesResponse);
 }
 
 export async function setCurrentWorkspace(workspaceId: string): Promise<WorkspacesResponse | null> {
