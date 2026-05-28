@@ -513,8 +513,13 @@ function socksProxyUrl(proxyUrl: string | undefined): string | undefined {
   const trimmed = proxyUrl?.trim();
   if (!trimmed) return undefined;
   try {
-    const { protocol } = new URL(trimmed);
-    return protocol === 'socks:' || protocol === 'socks5:' ? trimmed : undefined;
+    const url = new URL(trimmed);
+    if (url.protocol === 'socks:' || url.protocol === 'socks5:') return trimmed;
+    if (url.protocol === 'socks5h:') {
+      url.protocol = 'socks5:';
+      return url.toString();
+    }
+    return undefined;
   } catch {
     return undefined;
   }

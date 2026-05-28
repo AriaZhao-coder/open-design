@@ -123,6 +123,27 @@ describe('proxyDispatcherRequestInit', () => {
     }
   });
 
+  it('normalizes socks5h ALL_PROXY values for Socks5ProxyAgent', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
+    const { proxyDispatcherRequestInit } = await import('../src/connectionTest.js');
+
+    try {
+      const { close, requestInit } = proxyDispatcherRequestInit({
+        ALL_PROXY: 'socks5h://proxy.example.test:1080',
+      });
+
+      expect(requestInit.dispatcher).toBeTruthy();
+      expect(socks5ProxyAgentConstructor).toHaveBeenCalledWith(
+        'socks5://proxy.example.test:1080',
+        {},
+      );
+      expect(envHttpProxyAgentConstructor).not.toHaveBeenCalled();
+      await expect(close()).resolves.toBeUndefined();
+    } finally {
+      proxySpy.mockRestore();
+    }
+  });
+
   it('forwards agent timeout options into Socks5ProxyAgent construction', async () => {
     const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
     const { proxyDispatcherRequestInit } = await import('../src/connectionTest.js');
