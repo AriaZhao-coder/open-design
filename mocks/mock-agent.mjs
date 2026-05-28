@@ -38,6 +38,15 @@ function parseArgs(argv) {
     opts.positionals.push(a);
   }
   if (process.env.SYNCLO_EXPLORE_MOCK_NO_DELAY === '1') opts.noDelay = true;
+  // Fall through to REPORT_FILE env when --report-file wasn't supplied.
+  // Harnesses that spawn us (e.g. synclo-explore's orchestrator at
+  // nexu-io/agent-pr-explore) set REPORT_FILE as env but expect the
+  // agent to write there autonomously — real opencode/claude do via
+  // their Write tool, but the mock needs to project the recording's
+  // final assistant text to that path so the harness sees a report.
+  if (!opts.reportFile && process.env.REPORT_FILE) {
+    opts.reportFile = process.env.REPORT_FILE;
+  }
   return opts;
 }
 
