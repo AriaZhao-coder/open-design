@@ -1326,12 +1326,12 @@ Your direct capabilities in this harness:
 
 When the positive path is gated on something missing in the sandbox, try in order:
 
-a. PR-provided fixtures: if the diff includes 'tests/fixtures/fake-X.mjs' (or similar), the PR author wrote that stub specifically so tests can run without the real binary. The fixture lives on the host filesystem after checkout. The the PR daemon almost certainly reads an env var to point at it (look for 'process.env.VELA_BIN' / 'process.env.FAKE_X_BIN' etc. in the diff). Container env is set ONCE at 'docker run' before this prompt starts -- you cannot change it mid-run. Emit §🔑 Needs ("set FAKE_X_BIN=<path>") so the maintainer (or harness on next iteration) can configure the run.
+a. PR-provided fixtures: if the diff includes 'tests/fixtures/fake-X.mjs' (or similar), the PR author wrote that stub specifically so tests can run without the real binary. The fixture lives on the host filesystem after checkout. The the PR daemon almost certainly reads an env var to point at it (look for 'process.env.VELA_BIN' / 'process.env.FAKE_X_BIN' etc. in the diff). Container env is set ONCE at 'docker run' before this prompt starts -- you cannot change it mid-run. Emit §📎 Needs (e.g., "FAKE_X_BIN: prewire to the fixture path so the next run can test the positive path") so the maintainer (or harness on next iteration) can configure the run. Do NOT emit a concrete host path -- name the env var and its purpose only.
 
 b. Build a host-side stub if it would unblock: with 'fs:write' you can create a script at any host path. But the running daemon will not pick it up unless its env points at it -- same env-at-startup constraint as (a). Signal in §🔑 Needs / §📎 Needs.
 
 c. Probe APIs directly via Playwright -- this is your most direct unblock and needs no harness change:
-   - 'await page.evaluate(() => fetch(\"/api/new/route\", { method:\"POST\", body: JSON.stringify({...}) }).then(r => ({status: r.status, body: r.text()})))'
+   - 'await page.evaluate(() => fetch(\"/api/new/route\", { method:\"POST\", body: JSON.stringify({...}) }).then(async r => ({status: r.status, body: await r.text()})))'
    - 'await page.request.post(\"${base_url}/api/...\", { data: {...} })'
    Useful when the new daemon route is real but no UI control reaches it in this sandbox state. Capture the status code + response shape as case evidence.
 
