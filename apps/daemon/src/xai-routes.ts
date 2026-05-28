@@ -311,6 +311,7 @@ export function registerXaiRoutes(app: Express, ctx: RegisterXaiRoutesDeps) {
     };
 
     let resp: Response;
+    let text: string;
     const proxyDispatcher = proxyDispatcherRequestInit(process.env);
     try {
       resp = await fetch(`${baseUrl}/responses`, {
@@ -322,6 +323,7 @@ export function registerXaiRoutes(app: Express, ctx: RegisterXaiRoutesDeps) {
         body: JSON.stringify(requestBody),
         ...proxyDispatcher.requestInit,
       });
+      text = await resp.text();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return res.status(502).json({ error: `xAI request failed: ${msg}` });
@@ -329,7 +331,6 @@ export function registerXaiRoutes(app: Express, ctx: RegisterXaiRoutesDeps) {
       await proxyDispatcher.close();
     }
 
-    const text = await resp.text();
     if (!resp.ok) {
       return res
         .status(502)

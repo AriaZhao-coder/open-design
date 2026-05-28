@@ -370,6 +370,10 @@ describe('xai-routes', () => {
     );
 
     let xaiHit = 0;
+    let bodyConsumed = false;
+    proxyDispatcherCloseMock.mockImplementationOnce(async () => {
+      expect(bodyConsumed).toBe(true);
+    });
     globalThis.fetch = vi.fn(async (input: any, init?: any) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('xai.example.test')) {
@@ -389,34 +393,38 @@ describe('xai-routes', () => {
           allowed_x_handles: ['NousResearch', 'xai'],
           from_date: '2026-05-01',
         });
-        return new Response(
-          JSON.stringify({
-            output: [
-              {
-                content: [
-                  {
-                    text: 'Hermes 0.11 shipped xAI integration on 5/15.',
-                    annotations: [
-                      {
-                        type: 'url_citation',
-                        url: 'https://x.com/NousResearch/status/123',
-                        start_index: 0,
-                        end_index: 7,
-                      },
-                      {
-                        type: 'url_citation',
-                        url: 'https://x.com/xai/status/456',
-                        start_index: 8,
-                        end_index: 15,
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
+        return {
+          ok: true,
+          status: 200,
+          text: vi.fn(async () => {
+            bodyConsumed = true;
+            return JSON.stringify({
+              output: [
+                {
+                  content: [
+                    {
+                      text: 'Hermes 0.11 shipped xAI integration on 5/15.',
+                      annotations: [
+                        {
+                          type: 'url_citation',
+                          url: 'https://x.com/NousResearch/status/123',
+                          start_index: 0,
+                          end_index: 7,
+                        },
+                        {
+                          type: 'url_citation',
+                          url: 'https://x.com/xai/status/456',
+                          start_index: 8,
+                          end_index: 15,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            });
           }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        );
+        } as unknown as Response;
       }
       // Pass through anything that isn't an xAI call (the test's own
       // request to the local express server).
