@@ -632,11 +632,6 @@ export function EntryShell({
                 onViewAllProjects={() => changeView('projects')}
                 onBrowseRegistry={() => changeView('plugins')}
                 onOpenNewProject={(tab) => {
-                  // Stage B of plugin-driven-flow-plan: the rail's
-                  // "From template" chip wires through here so the
-                  // existing modal-based create flow still owns the
-                  // template picker UI. Future tabs (e.g. live-artifact
-                  // import) can reuse the same callback.
                   openNewProject(tab);
                 }}
                 promptHandoff={homePromptHandoff}
@@ -646,8 +641,8 @@ export function EntryShell({
                 promptTemplates={promptTemplates}
               />
             ) : null}
-            {view === 'projects' ? (
-              projectsLoading || skillsLoading || designSystemsLoading ? (
+            <div style={view === 'projects' ? undefined : { display: 'none' }}>
+              {projectsLoading || skillsLoading || designSystemsLoading ? (
                 <CenteredLoader label={t('common.loading')} />
               ) : (
                 <div className="entry-section">
@@ -665,25 +660,25 @@ export function EntryShell({
                     onNewProject={() => openNewProject()}
                   />
                 </div>
-              )
-            ) : null}
-            {view === 'tasks' ? (
+              )}
+            </div>
+            <div style={view === 'tasks' ? undefined : { display: 'none' }}>
               <TasksView
                 skills={skills}
                 designTemplates={designTemplates}
                 connectors={connectors}
                 connectorsLoading={connectorsLoading}
               />
-            ) : null}
-            {view === 'plugins' ? (
+            </div>
+            <div style={view === 'plugins' ? undefined : { display: 'none' }}>
               <PluginsView
                 onCreatePlugin={startPluginAuthoring}
                 onUsePlugin={usePluginFromLibrary}
                 onCreatePluginShareProject={onCreatePluginShareProject}
               />
-            ) : null}
-            {view === 'design-systems' ? (
-              designSystemsLoading ? (
+            </div>
+            <div style={view === 'design-systems' ? undefined : { display: 'none' }}>
+              {designSystemsLoading ? (
                 <CenteredLoader label={t('common.loading')} />
               ) : (
                 <div className="entry-section">
@@ -701,8 +696,8 @@ export function EntryShell({
                     onPreview={(id) => setPreviewSystemId(id)}
                   />
                 </div>
-              )
-            ) : null}
+              )}
+            </div>
             {view === 'integrations' ? (
               <IntegrationsView
                 config={config}
