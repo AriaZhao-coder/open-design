@@ -193,9 +193,22 @@ turn N+1: resolveResumeDecision(conv, agent, epoch, forceFresh, caps)
 
 ### Design Decisions
 
-1. **Claude-only, capability-gated, opt-in per adapter.** Reuse the existing
-   `resumesSessionViaCli` semantics so the transcript-skip seam and the resume
-   flag travel together; other adapters are untouched.
+1. **Claude-only, capability-gated, opt-in per adapter.** Other adapters are
+   untouched. Note the existing `resumesSessionViaCli` flag is a *static,
+   per-adapter* skip-transcript switch (agy resumes on every follow-up or never).
+   Claude resumes *conditionally per turn*, so it must NOT reuse that static flag
+   to gate transcript-skipping — see Design Decision #1a.
+   1a. **Transcript-skip is keyed to the per-run resume decision, never a static
+   flag.** Both `--resume` and skip-transcript derive from the single per-run
+   `resumeSessionId` returned by `resolveResumeDecision()`: present → emit
+   `--resume` AND skip the transcript; null → omit `--resume` AND send the full
+   transcript. They are coupled so a guard-fail / no-capability / force-fresh
+   turn can never produce the broken state "cold spawn + no `--resume` + no
+   transcript" (which would silently drop all prior context and break the
+   non-regression guarantee in Design Decision #4). For Claude, leave the static
+   `resumesSessionViaCli` flag unset; introduce `supportsSessionResume` as a
+   *capability* (can this CLI resume at all?) distinct from the per-turn
+   *decision* (should THIS turn resume?).
 2. **Store a pointer keyed on `(conversationId, agentId)`** — the OD analog of
    multica's per-(agent, issue) session. A dedicated small table avoids bloating
    `conversations` and makes the agent-switch guard a natural key miss.
@@ -232,13 +245,22 @@ per `AGENTS.md`:
 - **Resume happy path (red on main).** Two turns, same conversation, same agent:
   assert turn 2 spawns with `--resume <sid-from-turn-1>` and that turn 2's stdin
   prompt does **not** contain the full transcript (only `currentPrompt`).
+  Every guard-fail case below asserts BOTH halves of the coupling (Design
+  Decision #1a): no `--resume` AND the full transcript is present in the stdin
+  prompt — this is the explicit non-regression proof that a fallback turn never
+  loses prior context.
 - **Agent-switch guard.** Turn 1 Claude, turn 2 after switching agent → no
-  `--resume`; transcript path used.
-- **Force-fresh.** Retry-from-message and `--fresh-session` → no `--resume`.
-- **History-edit epoch guard.** Editing a prior turn bumps epoch → no `--resume`.
+  `--resume` AND turn 2's prompt contains the full transcript.
+- **Force-fresh.** Retry-from-message and `--fresh-session` → no `--resume` AND
+  full transcript present.
+- **History-edit epoch guard.** Editing a prior turn bumps epoch → no `--resume`
+  AND full transcript present.
 - **Runtime-rejection fallback.** Stub a `claude` that rejects `--resume` → the
-  daemon retries with transcript and the run still succeeds.
-- **Capability probe.** A `claude --help` without `--resume` → flag never sent.
+  daemon retries WITHOUT `--resume` AND WITH the full transcript, and the run
+  still succeeds.
+- **Capability probe.** A `claude --help` without `--resume` → flag never sent
+  AND every turn carries the full transcript (skip-transcript stays off because
+  `resolveResumeDecision` returns null without the capability).
 - **Interactive intact.** An `AskUserQuestion` turn still resolves via
   `POST /api/runs/:id/tool-result` under resume.
 
@@ -265,8 +287,10 @@ if (runtimeContext.resumeSessionId && caps.sessionResume) {
   args.push('--resume', runtimeContext.resumeSessionId);
 }
 
-// prompt composition
-const skipTranscript = def.resumesSessionViaCli === true || resumeSessionId != null;
+// prompt composition — keyed ONLY to the per-run decision, NOT a static flag.
+// `--resume` (above) and skipTranscript share the same source of truth, so a
+// guard-fail turn (resumeSessionId == null) always sends the full transcript.
+const skipTranscript = resumeSessionId != null;
 
 // on run success (mirrors multica PinTaskSession)
 if (finalSessionId) upsertConversationAgentSession(db, {
