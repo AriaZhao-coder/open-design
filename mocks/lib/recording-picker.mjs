@@ -73,26 +73,44 @@ export async function pickRecording({ prompt } = {}) {
     if (picked) return { traceId: picked, path: join(dir, `${picked}.jsonl`), method: 'hash' };
   }
 
-  // 3. pool by tag
+  // 3. pool by tag — supports structured `<dimension>:<value>` shortcuts
+  //    documented in README (agent:claude, skill:agent-browser,
+  //    outcome:failed). The dimension routes to the right meta field;
+  //    bare values fall back to tag substring match. Mirrors the
+  //    OD_MOCKS_TRACE policy: if the env is set and matches nothing,
+  //    refuse to fall through to global random — surface the typo.
   const pool = process.env.OD_MOCKS_POOL;
   if (pool) {
+    const colonIdx = pool.indexOf(':');
+    const dim = colonIdx >= 0 ? pool.slice(0, colonIdx) : null;
+    const value = colonIdx >= 0 ? pool.slice(colonIdx + 1) : null;
+
     const candidates = [];
     for (const id of all) {
       const meta = await readMeta(dir, id);
       if (!meta) continue;
       const tags = meta.tags ?? [];
-      if (
-        tags.includes(pool) ||
-        meta.agent === pool ||
-        tags.some(t => typeof t === 'string' && t.includes(pool))
-      ) {
-        candidates.push(id);
-      }
+
+      let match = false;
+      if (dim === 'outcome' && meta.outcome === value)               match = true;
+      else if (dim === 'agent'  && meta.agent === value)             match = true;
+      else if (dim === 'skill'  && tags.some(t => t === `skill:${value}`)) match = true;
+      else if (tags.includes(pool))                                  match = true;
+      else if (meta.agent === pool)                                  match = true;
+      else if (tags.some(t => typeof t === 'string' && t.includes(pool))) match = true;
+
+      if (match) candidates.push(id);
     }
-    if (candidates.length > 0) {
-      const picked = pickRandom(candidates, process.env.OD_MOCKS_SEED);
-      if (picked) return { traceId: picked, path: join(dir, `${picked}.jsonl`), method: 'pool', pool };
+    if (candidates.length === 0) {
+      throw new Error(
+        `OD_MOCKS_POOL="${pool}" matched no recordings in ${dir}. ` +
+        `Supported shapes: agent:<name>, skill:<name>, outcome:<succeeded|failed|errored>, ` +
+        `or any tag substring. Check candidates with ` +
+        `\`jq '[.entries[] | {agent, outcome, skills}] | unique' mocks/manifest.json\`.`,
+      );
     }
+    const picked = pickRandom(candidates, process.env.OD_MOCKS_SEED);
+    if (picked) return { traceId: picked, path: join(dir, `${picked}.jsonl`), method: 'pool', pool };
   }
 
   // 4. random
