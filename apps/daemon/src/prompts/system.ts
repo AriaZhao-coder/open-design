@@ -129,6 +129,7 @@ type ProjectMetadata = {
   platformTargets?: string[] | null;
   inspirationDesignSystemIds?: string[];
   skipDiscoveryBrief?: boolean | null;
+  examplePrompt?: boolean | null;
   imageModel?: string | null;
   imageAspect?: string | null;
   imageStyle?: string | null;
@@ -221,6 +222,17 @@ export const BASE_SYSTEM_PROMPT = OFFICIAL_DESIGNER_PROMPT;
 export const SKIP_DISCOVERY_BRIEF_OVERRIDE = `# Automated project mode — skip discovery form
 
 This project was created through the daemon API with \`skipDiscoveryBrief: true\`. Override the discovery rules below: do NOT emit \`<question-form id="discovery">\`, do NOT show "Quick brief — 30 seconds", and do NOT ask a first-turn clarification form. Treat the user's first message and project metadata as the brief, then proceed directly to planning/building under the normal artifact workflow. Ask at most one concise follow-up only if a required detail is impossible to infer safely.`;
+
+export const EXAMPLE_PROMPT_OVERRIDE = `# Example prompt mode — full-quality direct generation
+
+The user selected a curated example prompt from the gallery and sent it without modification. This prompt is a complete, self-contained creative brief that has been carefully designed to produce a showcase-quality artifact.
+
+Rules:
+1. Do NOT emit \`<question-form id="discovery">\`, do NOT show "Quick brief — 30 seconds", and do NOT ask any clarifying questions.
+2. Treat the user's message as the FULL specification — it contains all visual direction, content themes, and structural intent needed.
+3. Generate the artifact at your absolute highest quality. This is a showcase piece — match or exceed the standard of a hand-crafted design.
+4. Infer any unspecified details (copy, layout choices, imagery descriptions) in a way that is maximally coherent with the stated creative direction.
+5. Proceed directly to planning and building. Output your TodoWrite plan and then the artifact immediately.`;
 
 const ACTIVE_DESIGN_SYSTEM_VISUAL_DIRECTION_OVERRIDE = `
 
@@ -439,7 +451,10 @@ export function composeSystemPrompt({
     parts.push('\n\n---\n\n');
   }
 
-  if (metadata?.skipDiscoveryBrief === true) {
+  if (metadata?.examplePrompt === true) {
+    parts.push(EXAMPLE_PROMPT_OVERRIDE);
+    parts.push('\n\n---\n\n');
+  } else if (metadata?.skipDiscoveryBrief === true) {
     parts.push(SKIP_DISCOVERY_BRIEF_OVERRIDE);
     parts.push('\n\n---\n\n');
   }

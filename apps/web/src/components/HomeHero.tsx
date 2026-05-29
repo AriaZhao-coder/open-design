@@ -107,6 +107,7 @@ interface Props {
   contextItemCount: number;
   error: string | null;
   showActivePluginChip?: boolean;
+  onExamplePromptStatusChange?: (isExample: boolean) => void;
 }
 
 interface HomeHeroDesignSystemOption {
@@ -192,6 +193,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
     contextItemCount,
     error,
     showActivePluginChip = true,
+    onExamplePromptStatusChange,
   },
   ref,
 ) {
@@ -541,6 +543,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
   function clearSelectedPromptExample() {
     if (selectedPromptExample) {
       onPromptChange('');
+      onExamplePromptStatusChange?.(false);
     }
     setSelectedPromptExample(null);
   }
@@ -550,6 +553,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
       label: promptExampleChipLabel(example),
       promptText: example,
     });
+    onExamplePromptStatusChange?.(true);
     onPromptChange(example);
     setSelectedIndex(0);
     requestAnimationFrame(() => {
@@ -567,6 +571,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
       label: record.title,
       promptText,
     });
+    onExamplePromptStatusChange?.(true);
     onPickExamplePlugin(record, chipId, promptText);
   }
 
@@ -826,6 +831,7 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
                 onPromptChange(e.target.value);
                 if (selectedPromptExample && e.target.value !== selectedPromptExample.promptText) {
                   setSelectedPromptExample(null);
+                  onExamplePromptStatusChange?.(false);
                 }
                 setSelectedIndex(0);
               }}

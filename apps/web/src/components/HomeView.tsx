@@ -7,7 +7,7 @@
 // surface by lifting its plugin orchestration up here so the prompt
 // textarea can live centered in the hero.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ApplyResult,
   ConnectorDetail,
@@ -240,6 +240,12 @@ export function HomeView({
   const [mcpLoading, setMcpLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
   const [promptEditedByUser, setPromptEditedByUser] = useState(false);
+  const [isUnmodifiedExample, setIsUnmodifiedExample] = useState(false);
+  const examplePromptTextRef = useRef<string | null>(null);
+  const handleExamplePromptStatusChange = useCallback((isExample: boolean) => {
+    setIsUnmodifiedExample(isExample);
+    if (!isExample) examplePromptTextRef.current = null;
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [designSystemLogoById, setDesignSystemLogoById] = useState<Record<string, string>>({});
   const [elevenLabsVoices, setElevenLabsVoices] = useState<AudioVoiceOption[]>([]);
@@ -872,6 +878,7 @@ export function HomeView({
     setError(null);
     setPrompt(promptText);
     setPromptEditedByUser(false);
+    examplePromptTextRef.current = promptText;
     focusPromptAtEnd();
   }
 
@@ -887,6 +894,7 @@ export function HomeView({
   function handlePromptChange(nextPrompt: string) {
     setPrompt(nextPrompt);
     setPromptEditedByUser(true);
+    examplePromptTextRef.current = null;
     if (!active?.queryTemplate) return;
     const extracted = extractPluginInputsFromPrompt(
       active.queryTemplate,
@@ -1271,6 +1279,9 @@ export function HomeView({
       contextMcpServers,
       contextConnectors,
       attachments: stagedFiles,
+      ...(isUnmodifiedExample || (examplePromptTextRef.current !== null && trimmed === examplePromptTextRef.current.trim())
+        ? { skipDiscoveryBrief: true }
+        : {}),
     });
   }
 
@@ -1330,6 +1341,7 @@ export function HomeView({
         onPickChip={pickChip}
         contextItemCount={contextItemCount}
         error={error}
+        onExamplePromptStatusChange={handleExamplePromptStatusChange}
       />
 
       <RecentProjectsStrip
