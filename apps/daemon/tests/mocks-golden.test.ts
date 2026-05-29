@@ -24,10 +24,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createClaudeStreamHandler } from '../src/claude-stream.js';
-import {
-  createJsonEventStreamHandler,
-  type ParserKind,
-} from '../src/json-event-stream.js';
+import { createJsonEventStreamHandler } from '../src/json-event-stream.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '../../..');
@@ -82,7 +79,7 @@ function runMockAndCollectEvents(agent: string, trace: string): unknown[] {
   const handler =
     agent === 'claude'
       ? createClaudeStreamHandler(sink)
-      : createJsonEventStreamHandler(agent as ParserKind, sink);
+      : createJsonEventStreamHandler(agent, sink);
   handler.feed(proc.stdout);
   return normalizeVolatile(events);
 }
