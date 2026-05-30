@@ -621,7 +621,7 @@ export function EntryShell({
               view === 'home' ? '' : ' entry-main__inner--wide'
             }`}
           >
-            <div style={view === 'home' ? undefined : { display: 'none' }}>
+            <div style={view === 'home' ? undefined : { contentVisibility: 'hidden' }}>
               <HomeView
                 projects={projects}
                 projectsLoading={projectsLoading}
@@ -641,7 +641,7 @@ export function EntryShell({
                 promptTemplates={promptTemplates}
               />
             </div>
-            <div style={view === 'projects' ? undefined : { display: 'none' }}>
+            <div style={view === 'projects' ? undefined : { contentVisibility: 'hidden' }}>
               {projectsLoading || skillsLoading || designSystemsLoading ? (
                 <CenteredLoader label={t('common.loading')} />
               ) : (
@@ -662,7 +662,7 @@ export function EntryShell({
                 </div>
               )}
             </div>
-            <div style={view === 'tasks' ? undefined : { display: 'none' }}>
+            <div style={view === 'tasks' ? undefined : { contentVisibility: 'hidden' }}>
               <TasksView
                 skills={skills}
                 designTemplates={designTemplates}
@@ -670,14 +670,14 @@ export function EntryShell({
                 connectorsLoading={connectorsLoading}
               />
             </div>
-            <div style={view === 'plugins' ? undefined : { display: 'none' }}>
+            <div style={view === 'plugins' ? undefined : { contentVisibility: 'hidden' }}>
               <PluginsView
                 onCreatePlugin={startPluginAuthoring}
                 onUsePlugin={usePluginFromLibrary}
                 onCreatePluginShareProject={onCreatePluginShareProject}
               />
             </div>
-            <div style={view === 'design-systems' ? undefined : { display: 'none' }}>
+            <div style={view === 'design-systems' ? undefined : { contentVisibility: 'hidden' }}>
               {designSystemsLoading ? (
                 <CenteredLoader label={t('common.loading')} />
               ) : (
