@@ -249,6 +249,9 @@ describe('AssistantMessage question forms', () => {
       '</question-form>',
     ].join('\n');
 
+    // Render as a historical (not-last) message so the forms display inline —
+    // the active/last form now surfaces as a banner that points to the
+    // right-hand Questions tab, so dedup is only observable on inline forms.
     render(
       <AssistantMessage
         message={baseMessage({
@@ -261,7 +264,7 @@ describe('AssistantMessage question forms', () => {
         })}
         streaming={false}
         projectId="proj-1"
-        isLast
+        isLast={false}
       />,
     );
 

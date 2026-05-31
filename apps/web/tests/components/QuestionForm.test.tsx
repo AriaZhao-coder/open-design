@@ -201,8 +201,11 @@ describe('QuestionFormView', () => {
       <QuestionFormView form={checkboxObjectForm} interactive onSubmit={onSubmit} />,
     );
 
+    // Every question is now optional (the Questions tab owns submission and
+    // offers skip-all), so the form never blocks submit on an unanswered
+    // required field — only on a checkbox selection-cap overflow.
     const submit = screen.getByRole('button', { name: 'Send answers' });
-    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByLabelText('Editorial / magazine'));
     fireEvent.click(screen.getByLabelText('Soft gradients'));
@@ -226,8 +229,9 @@ describe('QuestionFormView', () => {
       <QuestionFormView form={selectObjectForm} interactive onSubmit={onSubmit} />,
     );
 
+    // Optional-by-default: an unanswered required select no longer disables submit.
     const submit = screen.getByRole('button', { name: 'Send answers' });
-    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
 
     const select = container.querySelector('select');
     if (!select) throw new Error('expected select control');
