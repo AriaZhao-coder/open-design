@@ -63,6 +63,15 @@ describe('buildSrcdoc', () => {
     expect(srcdoc).toContain('.replace(/@font-face\\s*\\{[^}]*\\}/gi,');
   });
 
+  it('prunes hidden snapshot clone nodes before rasterizing decks', () => {
+    const srcdoc = buildSrcdoc(deckHtml, { deck: true });
+
+    expect(srcdoc).toContain('function pruneHiddenSnapshotNodes');
+    expect(srcdoc).toContain("computed.display === 'none'");
+    expect(srcdoc).toContain("computed.visibility === 'hidden'");
+    expect(srcdoc).toContain('pruneHiddenSnapshotNodes(document.documentElement, clone)');
+  });
+
   it('can guard preview iframes against load-time focus stealing', () => {
     // This test would fail if injectPreviewFocusGuard were removed from
     // buildSrcdoc — the guard script would be absent, and the assertions

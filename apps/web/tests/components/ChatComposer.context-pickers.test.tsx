@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatComposer } from '../../src/components/ChatComposer';
 import { I18nProvider } from '../../src/i18n';
 import type { Locale } from '../../src/i18n/types';
-import { composerText, typeAndSettle } from '../helpers/lexical-composer';
+import { composerText, pressEnter, typeAndSettle } from '../helpers/lexical-composer';
 
 const COMMUNITY_PLUGIN = {
   id: 'community-deck',
@@ -216,12 +216,20 @@ describe('ChatComposer context pickers', () => {
     await typeAndSettle('@');
 
     await waitFor(() => expect(screen.getByTestId('mention-popover')).toBeTruthy());
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'All',
+      'Design files',
+      'Plugins',
+      'Skills',
+      'MCP',
+      'Connectors',
+    ]);
     expect(screen.getByRole('tab', { name: 'Plugins' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Skills' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Connectors' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Design files' })).toBeTruthy();
-    expect(screen.getByText('Search plugins, skills, MCP servers, connectors, and Design Files.')).toBeTruthy();
+    expect(screen.getByText('Search Design Files, plugins, skills, MCP servers, and connectors.')).toBeTruthy();
   });
 
   it('localizes @ panel tabs and empty states in Chinese mode', async () => {
@@ -234,17 +242,56 @@ describe('ChatComposer context pickers', () => {
     await typeAndSettle('@');
 
     await waitFor(() => expect(screen.getByRole('tab', { name: '全部' })).toBeTruthy());
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      '全部',
+      '设计文件',
+      '插件',
+      '技能',
+      'MCP',
+      '连接器',
+    ]);
     expect(screen.getByRole('tab', { name: '插件' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: '技能' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: '连接器' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: '设计文件' })).toBeTruthy();
-    expect(screen.getByText('搜索插件、技能、MCP 服务器、连接器和设计文件。')).toBeTruthy();
+    expect(screen.getByText('搜索设计文件、插件、技能、MCP 服务器和连接器。')).toBeTruthy();
 
     await typeAndSettle('@missing');
 
     await waitFor(() => expect(screen.getByText('没有找到“missing”的结果。')).toBeTruthy());
     expect(screen.queryByText('No results for “missing”.')).toBeNull();
+  });
+
+  it('lists Design Files first in All and picks the first file with Enter', async () => {
+    renderComposer({
+      projectFiles: [
+        {
+          path: 'designs/landing.html',
+          name: 'landing.html',
+          kind: 'html',
+          mime: 'text/html',
+          mtime: 1,
+          size: 128,
+        },
+      ],
+    });
+    await flushMounts();
+
+    await typeAndSettle('@');
+
+    await waitFor(() => expect(screen.getByText('designs/landing.html')).toBeTruthy());
+    const labels = Array.from(
+      screen.getByTestId('mention-popover').querySelectorAll('.mention-section-label'),
+      (node) => node.textContent,
+    );
+    expect(labels[0]).toBe('Design files');
+
+    pressEnter();
+
+    await waitFor(() => expect(composerText()).toBe('@designs/landing.html '));
+    expect(screen.getByTestId('staged-attachments').textContent).toContain('landing.html');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/apply'))).toBe(false);
   });
 
   it('selects an MCP server from @ search and keeps the inline token visible', async () => {

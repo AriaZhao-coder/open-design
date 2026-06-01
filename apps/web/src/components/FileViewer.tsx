@@ -739,6 +739,16 @@ function temporarilyExposeIframeForSnapshot(iframe: HTMLIFrameElement): () => vo
   };
 }
 
+async function requestPreviewSnapshotWithRetry(iframe: HTMLIFrameElement): Promise<Awaited<ReturnType<typeof requestPreviewSnapshot>>> {
+  const timeouts = [1500, 3000, 6000];
+  for (const timeout of timeouts) {
+    const snapshot = await requestPreviewSnapshot(iframe, timeout);
+    if (snapshot) return snapshot;
+    await waitForAnimationFrame();
+  }
+  return null;
+}
+
 function previewViewportStateKey(projectId: string, file: Pick<ProjectFile, 'name' | 'path'>): string {
   return `${projectId}:${file.path || file.name}`;
 }
@@ -6321,14 +6331,18 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
   };
   const captureExportImageSnapshot = useCallback(async () => {
     if (!useUrlLoadPreview) {
-      const activeIframe = iframeRef.current;
-      return activeIframe ? requestPreviewSnapshot(activeIframe) : null;
+      const activeIframe = srcDocPreviewIframeRef.current ?? iframeRef.current;
+      if (!activeIframe) return null;
+      await waitForIframeLoadOrTimeout(activeIframe, 250);
+      await waitForAnimationFrame();
+      return requestPreviewSnapshotWithRetry(activeIframe);
     }
 
     const srcDocIframe = srcDocPreviewIframeRef.current;
     if (!srcDocIframe) {
       const activeIframe = iframeRef.current;
-      return activeIframe ? requestPreviewSnapshot(activeIframe) : null;
+      if (!activeIframe) return null;
+      return requestPreviewSnapshotWithRetry(activeIframe);
     }
 
     if (useLazySrcDocTransport && !srcDocShellReady) {
@@ -6340,7 +6354,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     const restoreVisibility = temporarilyExposeIframeForSnapshot(srcDocIframe);
     try {
       await waitForAnimationFrame();
-      return requestPreviewSnapshot(srcDocIframe);
+      return requestPreviewSnapshotWithRetry(srcDocIframe);
     } finally {
       restoreVisibility();
     }

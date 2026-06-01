@@ -60,7 +60,7 @@ type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => 
 
 type ToolsTab = 'plugins' | 'skills' | 'mcp' | 'import';
 
-type MentionTab = 'all' | 'plugins' | 'skills' | 'mcp' | 'connectors' | 'files';
+type MentionTab = 'all' | 'files' | 'plugins' | 'skills' | 'mcp' | 'connectors';
 
 const USER_PLUGIN_SOURCE_KINDS = new Set<PluginSourceKind>([
   'user',
@@ -250,10 +250,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // Lexical owns the caret, so the mention/slash trigger state only carries
     // the typed query — no cursor offset.
     const [mention, setMention] = useState<{ q: string } | null>(null);
-    // Active-row index for the @-popover's flat "all-tab" union (plugins →
-    // skills → mcp → connectors → files). Resets to 0 whenever the query
-    // identity changes; drives the visual highlight + Enter/Tab target.
+    // Active-row index for the @-popover's visible union (files → plugins →
+    // skills → mcp → connectors). Resets to 0 whenever the query identity or
+    // tab changes; drives the visual highlight + Enter/Tab target.
     const [mentionIndex, setMentionIndex] = useState(0);
+    const [mentionTab, setMentionTab] = useState<MentionTab>('all');
     // Viewport caret box the floating popover anchors against. Sampled by the
     // editor at trigger-detection time; null when no trigger is live.
     const [caretRect, setCaretRect] = useState<CaretRect | null>(null);
@@ -646,6 +647,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       setStagedConnectors([]);
       setUploadError(null);
       setMention(null);
+      setMentionTab('all');
       setSlash(null);
       editorRef.current?.clear();
     }
@@ -1053,6 +1055,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       anchorRect: CaretRect | null;
     }) {
       setCaretRect(anchorRect);
+      if (nextMention && !mention) {
+        setMentionTab('all');
+      } else if (!nextMention) {
+        setMentionTab('all');
+      }
       setMention((prev) => {
         // Reset the active row only when the query identity changes (mirror of
         // the slash reset) so re-renders from unrelated state don't snap it.
@@ -1100,15 +1107,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         return true;
       }
       if (mention) {
-        // Drive a single index over the flat "all-tab" union length; the
-        // MentionPopover renders the same section order and highlights the
+        // Drive a single index over the visible section union. MentionPopover
+        // renders the same files-first section order and highlights the
         // matching row from activeIndex.
+        const showFiles = mentionTab === 'all' || mentionTab === 'files';
+        const showPlugins = mentionTab === 'all' || mentionTab === 'plugins';
+        const showSkills = mentionTab === 'all' || mentionTab === 'skills';
+        const showMcp = mentionTab === 'all' || mentionTab === 'mcp';
+        const showConnectors = mentionTab === 'all' || mentionTab === 'connectors';
         const total =
-          filteredPlugins.length +
-          filteredSkills.length +
-          filteredMcpServers.length +
-          filteredConnectors.length +
-          filteredFiles.length;
+          (showFiles ? filteredFiles.length : 0) +
+          (showPlugins ? filteredPlugins.length : 0) +
+          (showSkills ? filteredSkills.length : 0) +
+          (showMcp ? filteredMcpServers.length : 0) +
+          (showConnectors ? filteredConnectors.length : 0);
         if (total > 0) {
           if (key === 'ArrowDown') {
             setMentionIndex((i) => (i + 1) % total);
@@ -1127,33 +1139,46 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       return false;
     }
 
-    // Resolve a flat "all-tab" index to the right insert call. Section order
-    // MUST match MentionPopover's render order (plugins→skills→mcp→connectors
-    // →files); the activeIndex highlight and Enter target stay in lockstep.
+    // Resolve a flat visible-section index to the right insert call. Section
+    // order MUST match MentionPopover's render order (files→plugins→skills
+    // →mcp→connectors); the activeIndex highlight and Enter target stay in
+    // lockstep across "All" and individual tabs.
     function pickMentionByFlatIndex(flat: number) {
       let i = flat;
-      if (i < filteredPlugins.length) {
-        void insertPluginMention(filteredPlugins[i]!);
-        return;
+      if (mentionTab === 'all' || mentionTab === 'files') {
+        if (i < filteredFiles.length) {
+          insertMention(filteredFiles[i]!.path ?? filteredFiles[i]!.name);
+          return;
+        }
+        i -= filteredFiles.length;
       }
-      i -= filteredPlugins.length;
-      if (i < filteredSkills.length) {
-        void insertSkillMention(filteredSkills[i]!);
-        return;
+      if (mentionTab === 'all' || mentionTab === 'plugins') {
+        if (i < filteredPlugins.length) {
+          void insertPluginMention(filteredPlugins[i]!);
+          return;
+        }
+        i -= filteredPlugins.length;
       }
-      i -= filteredSkills.length;
-      if (i < filteredMcpServers.length) {
-        insertMcpMention(filteredMcpServers[i]!);
-        return;
+      if (mentionTab === 'all' || mentionTab === 'skills') {
+        if (i < filteredSkills.length) {
+          void insertSkillMention(filteredSkills[i]!);
+          return;
+        }
+        i -= filteredSkills.length;
       }
-      i -= filteredMcpServers.length;
-      if (i < filteredConnectors.length) {
-        insertConnectorMention(filteredConnectors[i]!);
-        return;
+      if (mentionTab === 'all' || mentionTab === 'mcp') {
+        if (i < filteredMcpServers.length) {
+          insertMcpMention(filteredMcpServers[i]!);
+          return;
+        }
+        i -= filteredMcpServers.length;
       }
-      i -= filteredConnectors.length;
-      const f = filteredFiles[i];
-      if (f) insertMention(f.path ?? f.name);
+      if (mentionTab === 'all' || mentionTab === 'connectors') {
+        if (i < filteredConnectors.length) {
+          insertConnectorMention(filteredConnectors[i]!);
+          return;
+        }
+      }
     }
 
     function insertMention(filePath: string) {
@@ -1267,7 +1292,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     }
 
     // The @-picker offers a unified search across context surfaces:
-    // project files, plugins, active MCP servers, and skills. Picked
+    // project files first, then plugins, skills, active MCP servers, and
+    // connectors. Picked
     // entities keep an inline @ token for orientation while richer
     // context is still applied behind the scenes when available.
     const mentionQuery = mention ? mention.q.toLowerCase() : '';
@@ -1498,6 +1524,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               mcpServers={filteredMcpServers}
               connectors={filteredConnectors}
               query={mention?.q ?? ''}
+              tab={mentionTab}
+              onTabChange={(nextTab) => {
+                setMentionTab(nextTab);
+                setMentionIndex(0);
+              }}
               activeIndex={mentionIndex}
               currentSkillId={currentSkillId}
               onPickFile={insertMention}
@@ -2543,6 +2574,8 @@ function MentionPopover({
   skills,
   mcpServers,
   query,
+  tab,
+  onTabChange,
   activeIndex,
   currentSkillId,
   onPickFile,
@@ -2557,6 +2590,8 @@ function MentionPopover({
   skills: SkillSummary[];
   mcpServers: McpServerConfig[];
   query: string;
+  tab: MentionTab;
+  onTabChange: (tab: MentionTab) => void;
   activeIndex: number;
   currentSkillId: string | null;
   onPickFile: (path: string) => void;
@@ -2567,29 +2602,29 @@ function MentionPopover({
 }) {
   const { locale, t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
-  const [tab, setTab] = useState<MentionTab>('all');
   const tabs: Array<{ id: MentionTab; label: string }> = [
     { id: 'all', label: t('chat.mentionTabAll') },
+    { id: 'files', label: t('chat.mentionTabFiles') },
     { id: 'plugins', label: t('chat.mentionTabPlugins') },
     { id: 'skills', label: t('chat.mentionTabSkills') },
     { id: 'mcp', label: t('chat.mentionTabMcp') },
     { id: 'connectors', label: t('chat.mentionTabConnectors') },
-    { id: 'files', label: t('chat.mentionTabFiles') },
   ];
+  const showFiles = tab === 'all' || tab === 'files';
   const showPlugins = tab === 'all' || tab === 'plugins';
   const showSkills = tab === 'all' || tab === 'skills';
   const showMcp = tab === 'all' || tab === 'mcp';
   const showConnectors = tab === 'all' || tab === 'connectors';
-  const showFiles = tab === 'all' || tab === 'files';
   const hasVisibleResults =
+    (showFiles && files.length > 0) ||
     (showPlugins && plugins.length > 0) ||
     (showSkills && skills.length > 0) ||
     (showMcp && mcpServers.length > 0) ||
-    (showConnectors && connectors.length > 0) ||
-    (showFiles && files.length > 0);
+    (showConnectors && connectors.length > 0);
   useEffect(() => {
     if (ref.current) ref.current.scrollTop = 0;
   }, [connectors, files, plugins, skills, mcpServers, tab]);
+  let optionIndex = 0;
   return (
     <div className="mention-popover" data-testid="mention-popover">
       <div className="mention-tabs" role="tablist" aria-label={t('chat.mentionTabsAria')}>
@@ -2601,7 +2636,7 @@ function MentionPopover({
             aria-selected={tab === item.id}
             className={`mention-tab${tab === item.id ? ' active' : ''}`}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setTab(item.id)}
+            onClick={() => onTabChange(item.id)}
           >
             {item.label}
           </button>
@@ -2617,11 +2652,41 @@ function MentionPopover({
             )}
           </div>
         ) : null}
+        {showFiles && files.length > 0 ? (
+        <>
+          <div className="mention-section-label">{t('chat.mentionSectionFiles')}</div>
+          {files.map((f) => {
+            const key = f.path ?? f.name;
+            const flat = optionIndex;
+            optionIndex += 1;
+            const active = flat === activeIndex;
+            return (
+              <button
+                key={`file-${key}`}
+                id={`mention-opt-${flat}`}
+                role="option"
+                aria-selected={active}
+                className={`mention-item${active ? ' is-active' : ''}`}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onPickFile(key)}
+              >
+                <Icon name="file" size={12} />
+                <code>{key}</code>
+                {f.size != null ? (
+                  <span className="mention-meta">{prettySize(f.size)}</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </>
+      ) : null}
         {showPlugins && plugins.length > 0 ? (
         <>
           <div className="mention-section-label">{t('chat.mentionSectionPlugins')}</div>
-          {plugins.map((p, i) => {
-            const flat = i; // plugins are first
+          {plugins.map((p) => {
+            const flat = optionIndex;
+            optionIndex += 1;
             const active = flat === activeIndex;
             return (
             <button
@@ -2650,8 +2715,9 @@ function MentionPopover({
         {showSkills && skills.length > 0 ? (
           <>
             <div className="mention-section-label">{t('chat.mentionSectionSkills')}</div>
-            {skills.map((skill, i) => {
-              const flat = plugins.length + i;
+            {skills.map((skill) => {
+              const flat = optionIndex;
+              optionIndex += 1;
               const rowActive = flat === activeIndex;
               const isCurrent = skill.id === currentSkillId;
               return (
@@ -2682,8 +2748,9 @@ function MentionPopover({
         {showMcp && mcpServers.length > 0 ? (
           <>
             <div className="mention-section-label">{t('chat.mentionSectionMcp')}</div>
-            {mcpServers.map((server, i) => {
-              const flat = plugins.length + skills.length + i;
+            {mcpServers.map((server) => {
+              const flat = optionIndex;
+              optionIndex += 1;
               const active = flat === activeIndex;
               return (
               <button
@@ -2712,8 +2779,9 @@ function MentionPopover({
         {showConnectors && connectors.length > 0 ? (
           <>
             <div className="mention-section-label">{t('chat.mentionSectionConnectors')}</div>
-            {connectors.map((connector, i) => {
-              const flat = plugins.length + skills.length + mcpServers.length + i;
+            {connectors.map((connector) => {
+              const flat = optionIndex;
+              optionIndex += 1;
               const active = flat === activeIndex;
               return (
               <button
@@ -2739,39 +2807,6 @@ function MentionPopover({
             );})}
           </>
         ) : null}
-        {showFiles && files.length > 0 ? (
-        <>
-          <div className="mention-section-label">{t('chat.mentionSectionFiles')}</div>
-          {files.map((f, i) => {
-            const key = f.path ?? f.name;
-            const flat =
-              plugins.length +
-              skills.length +
-              mcpServers.length +
-              connectors.length +
-              i;
-            const active = flat === activeIndex;
-            return (
-              <button
-                key={`file-${key}`}
-                id={`mention-opt-${flat}`}
-                role="option"
-                aria-selected={active}
-                className={`mention-item${active ? ' is-active' : ''}`}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onPickFile(key)}
-              >
-                <Icon name="file" size={12} />
-                <code>{key}</code>
-                {f.size != null ? (
-                  <span className="mention-meta">{prettySize(f.size)}</span>
-                ) : null}
-              </button>
-            );
-          })}
-        </>
-      ) : null}
       </div>
     </div>
   );

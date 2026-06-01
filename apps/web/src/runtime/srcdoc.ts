@@ -227,6 +227,24 @@ function injectSnapshotBridge(doc: string): string {
         .replace(/@font-face\\s*\\{[^}]*\\}/gi, '');
     }
   }
+  function pruneHiddenSnapshotNodes(originalRoot, cloneRoot){
+    var originals = originalRoot.querySelectorAll('*');
+    var clones = cloneRoot.querySelectorAll('*');
+    var count = Math.min(originals.length, clones.length);
+    var removals = [];
+    for (var i = 0; i < count; i++){
+      var original = originals[i];
+      var clone = clones[i];
+      if (!original || !clone || !clone.parentNode) continue;
+      var computed = window.getComputedStyle(original);
+      if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) {
+        removals.push(clone);
+      }
+    }
+    for (var r = removals.length - 1; r >= 0; r--){
+      if (removals[r].parentNode) removals[r].parentNode.removeChild(removals[r]);
+    }
+  }
   function waitForImages(){
     var imgs = Array.prototype.slice.call(document.images || []);
     return Promise.all(imgs.map(function(img){
@@ -257,6 +275,7 @@ function injectSnapshotBridge(doc: string): string {
     var clone = document.documentElement.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
     inlineSnapshotStyles(document.documentElement, clone);
+    pruneHiddenSnapshotNodes(document.documentElement, clone);
     var scroll = scrollOffset();
     var cloneBody = clone.querySelector('body');
     var rootStyle = clone.getAttribute('style') || '';

@@ -1554,7 +1554,7 @@ export const zhCN: Dict = {
   'chat.mentionTabConnectors': '连接器',
   'chat.mentionTabFiles': '设计文件',
   'chat.mentionNoResults': '没有找到“{query}”的结果。',
-  'chat.mentionSearchPrompt': '搜索插件、技能、MCP 服务器、连接器和设计文件。',
+  'chat.mentionSearchPrompt': '搜索设计文件、插件、技能、MCP 服务器和连接器。',
   'chat.mentionSectionPlugins': '插件',
   'chat.mentionSectionSkills': '技能',
   'chat.mentionSectionMcp': 'MCP',
