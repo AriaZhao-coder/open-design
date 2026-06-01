@@ -306,7 +306,6 @@ export const REFERENCE_GROUPS: ReferenceGroup[] = [
       { label: 'Taste Skill', url: 'https://www.tasteskill.dev/', detail: 'Design taste training and critique references.' },
       { label: 'UI Goodies', url: 'https://www.uigoodies.com/', detail: 'Hand-picked design resources.' },
       { label: 'Sidebar', url: 'https://sidebar.io/', detail: 'Five design links, every day.' },
-      { label: 'Browser Harness', url: 'https://github.com/browser-use/browser-harness', detail: 'Browser automation harness for extraction tasks.' },
       { label: 'Superset', url: 'https://github.com/superset-sh/superset', detail: 'Reference implementation for embedded browser workflows.' },
     ],
   },
@@ -416,7 +415,7 @@ export function DesignBrowserPanel({
   const [webviewNode, setWebviewNode] = useState<WebviewElement | null>(null);
   const [drawOverlayOpen, setDrawOverlayOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [savingAction, setSavingAction] = useState<'brief' | 'screenshot' | 'task' | null>(null);
+  const [savingAction, setSavingAction] = useState<'brief' | 'screenshot' | null>(null);
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const chromeRef = useRef<HTMLDivElement | null>(null);
   const restoredIconUrlRef = useRef(initialIconUrl?.trim() ?? '');
@@ -915,31 +914,6 @@ export function DesignBrowserPanel({
     }
   }
 
-  async function saveHarnessTask(url = currentUrl) {
-    if (url === EMPTY_URL) {
-      setStatusMessage('Open a page before creating a task');
-      return;
-    }
-    setSavingAction('task');
-    try {
-      const content = browserHarnessTaskMarkdown(projectId, url);
-      await copyText(content);
-      const file = await writeProjectTextFile(
-        projectId,
-        browserFileName('browser-harness-task', url, 'md'),
-        content,
-      );
-      if (!file) throw new Error('task save failed');
-      await onRefreshFiles();
-      onOpenFile(file.name);
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : 'Task save failed');
-    } finally {
-      setSavingAction(null);
-      setMenuOpen(false);
-    }
-  }
-
   async function clearCookies(storage: boolean) {
     if (!desktopHostAvailable) {
       setStatusMessage('Desktop browser data is unavailable here');
@@ -1162,11 +1136,6 @@ export function DesignBrowserPanel({
                 <Icon name="file" size={14} />
                 Save Page Brief
               </button>
-              <button type="button" role="menuitem" onClick={() => saveHarnessTask()} disabled={isBlank || savingAction != null}>
-                <Icon name="sparkles" size={14} />
-                Browser Harness Task
-              </button>
-              <span className="db-menu-separator" />
               <button type="button" role="menuitem" onClick={clearHistoryOnly}>
                 <Icon name="history" size={14} />
                 Clear Browsing History
@@ -1197,8 +1166,6 @@ export function DesignBrowserPanel({
           {isBlank ? (
             <DesignBrowserStart
               onNavigate={navigateTo}
-              onSaveHarnessTask={saveHarnessTask}
-              savingTask={savingAction === 'task'}
             />
           ) : desktopHostAvailable ? (
             <webview
@@ -1246,12 +1213,8 @@ const REFERENCE_ALL_CATEGORY = 'all';
 
 function DesignBrowserStart({
   onNavigate,
-  onSaveHarnessTask,
-  savingTask,
 }: {
   onNavigate: (url: string) => void;
-  onSaveHarnessTask: (url: string) => Promise<void>;
-  savingTask: boolean;
 }) {
   const [activeCategory, setActiveCategory] = useState<string>(REFERENCE_ALL_CATEGORY);
   const [query, setQuery] = useState('');
@@ -1279,15 +1242,8 @@ function DesignBrowserStart({
           <p className="db-start-sub">
             A curated set of references across inspiration, real product UI,
             motion, color, type, assets, and design systems. Open one to browse
-            it live, or hand it to the Browser Harness agent to extract its
-            design language.
+            it live while gathering design language for the next artifact.
           </p>
-        </div>
-        <div className="db-agent-card">
-          <div className="db-agent-card-title">
-            <Icon name="sparkles" size={15} />
-            Browser Harness
-          </div>
         </div>
       </div>
 
@@ -1400,14 +1356,6 @@ function DesignBrowserStart({
                       <button type="button" onClick={() => onNavigate(site.url)}>
                         <Icon name="globe" size={13} />
                         Open
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void onSaveHarnessTask(site.url)}
-                        disabled={savingTask}
-                      >
-                        <Icon name="sparkles" size={13} />
-                        Task
                       </button>
                     </div>
                   </article>
@@ -1666,7 +1614,6 @@ export function pageBriefMarkdown(brief: PageBrief, fallbackUrl: string): string
   appendList(lines, 'Images', brief.images);
   appendList(lines, 'Links', brief.links?.map((link) => `${link.text} - ${link.url}`));
   appendList(lines, 'Colors', brief.colors?.map((color) => `${color.value} (${color.count})`));
-  lines.push('## Browser Harness follow-up', '', browserHarnessTaskMarkdown('', url).trim(), '');
   return `${lines.join('\n').trim()}\n`;
 }
 
@@ -1676,45 +1623,6 @@ function appendList(lines: string[], title: string, values?: string[]) {
   lines.push(`## ${title}`, '');
   for (const value of filtered) lines.push(`- ${value}`);
   lines.push('');
-}
-
-export function browserHarnessTaskMarkdown(projectId: string, url: string): string {
-  const projectLine = projectId ? `Open Design project: ${projectId}` : 'Open Design project: current project';
-  return `# Browser Harness Design Extraction
-
-Target URL: ${url}
-${projectLine}
-
-## Goal
-
-Use browser-use/browser-harness to inspect the target page, extract the design language, and produce reusable Open Design artifacts.
-
-## Capture
-
-- Key screenshots for desktop and mobile.
-- Typography, color palette, spacing rhythm, interaction and motion notes.
-- Useful public assets, links, and implementation references.
-- A concise design brief that can guide the next artifact iteration.
-
-## Suggested command
-
-\`\`\`bash
-browser-harness <<'PY'
-new_tab("${url}")
-wait_for_load()
-capture_screenshot(path="reference.png", full_page=True)
-print(page_info())
-print(js("""(() => ({
-  title: document.title,
-  headings: Array.from(document.querySelectorAll('h1,h2,h3')).map((node) => node.textContent.trim()).filter(Boolean).slice(0, 20),
-  colors: Array.from(new Set(Array.from(document.querySelectorAll('body,body *')).slice(0, 500).flatMap((node) => {
-    const style = getComputedStyle(node);
-    return [style.color, style.backgroundColor, style.borderColor].filter((value) => value && value !== 'rgba(0, 0, 0, 0)');
-  }))).slice(0, 20)
-}))()"""))
-PY
-\`\`\`
-`;
 }
 
 // Writes a captured page image onto the system clipboard via the async

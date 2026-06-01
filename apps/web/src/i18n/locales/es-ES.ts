@@ -745,6 +745,8 @@ export const esES: Dict = {
   'chat.deleteConversationConfirm':
     '¿Eliminar «{title}»? Se borrarán sus mensajes.',
   'chat.untitledConversation': 'Conversación sin título',
+  'chat.forkedConversationTitle': 'Bifurcación de {title}',
+  'chat.forkConversationFailed': 'No se pudo bifurcar esta conversación.',
   'chat.startTitle': 'Empieza una conversación',
   'chat.startHint': "Describe lo que quieres generar o empieza con uno de estos ejemplos:",
   'chat.fillInputTitle': 'Haz clic para rellenar el campo',
@@ -1255,6 +1257,8 @@ export const esES: Dict = {
   'assistant.workingLabel': 'Trabajando',
   'assistant.doneLabel': 'Listo',
   'assistant.copyMarkdown': 'Copiar Markdown de la respuesta',
+  'assistant.forkConversation': 'Bifurcar desde aquí',
+  'assistant.forkingConversation': 'Bifurcando…',
   'assistant.feedbackPrompt': 'Comentarios',
   'assistant.feedbackPositive': 'Útil',
   'assistant.feedbackNegative': 'No útil',

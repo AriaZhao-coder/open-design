@@ -606,15 +606,32 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (!getProject(db, req.params.id)) {
       return res.status(404).json({ error: 'project not found' });
     }
-    const { title, seedFromConversationId } = req.body || {};
+    const { title, seedFromConversationId, forkAfterMessageId } = req.body || {};
     const now = Date.now();
     const hasExplicitSessionMode = Boolean(
       req.body && Object.prototype.hasOwnProperty.call(req.body, 'sessionMode'),
     );
+    const requestedForkMessageId =
+      typeof forkAfterMessageId === 'string' && forkAfterMessageId
+        ? forkAfterMessageId
+        : null;
     const sourceConversation =
       typeof seedFromConversationId === 'string' && seedFromConversationId
         ? getConversation(db, seedFromConversationId)
         : null;
+    let seedMessages: any[] = [];
+    if (sourceConversation && sourceConversation.projectId === req.params.id) {
+      seedMessages = listMessages(db, seedFromConversationId);
+      if (requestedForkMessageId) {
+        const forkIndex = seedMessages.findIndex((message) => message.id === requestedForkMessageId);
+        if (forkIndex < 0) {
+          return res.status(404).json({ error: 'fork message not found' });
+        }
+        seedMessages = seedMessages.slice(0, forkIndex + 1);
+      }
+    } else if (requestedForkMessageId) {
+      return res.status(404).json({ error: 'fork source conversation not found' });
+    }
     const sessionMode =
       hasExplicitSessionMode
         ? normalizeChatSessionMode(req.body.sessionMode)
@@ -632,23 +649,20 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     // Side Chat: inherit the source conversation's context by copying its
     // messages into the fresh conversation. Be defensive — a missing or
     // cross-project source id silently yields an empty conversation.
-    if (conv && typeof seedFromConversationId === 'string' && seedFromConversationId) {
-      const source = sourceConversation;
-      if (source && source.projectId === req.params.id) {
-        for (const m of listMessages(db, seedFromConversationId)) {
-          // Fresh id per copied message; upsertMessage assigns the next
-          // position so role/content ordering is preserved. Drop the source's
-          // run pointers (runId/runStatus/lastRunEventId): they belong to the
-          // OTHER conversation's runs, and a copied still-`running` assistant
-          // turn would otherwise render a perpetual spinner in the side chat.
-          upsertMessage(db, conv.id, {
-            ...m,
-            id: randomId(),
-            runId: undefined,
-            runStatus: undefined,
-            lastRunEventId: undefined,
-          });
-        }
+    if (conv && seedMessages.length > 0) {
+      for (const m of seedMessages) {
+        // Fresh id per copied message; upsertMessage assigns the next
+        // position so role/content ordering is preserved. Drop the source's
+        // run pointers (runId/runStatus/lastRunEventId): they belong to the
+        // OTHER conversation's runs, and a copied still-`running` assistant
+        // turn would otherwise render a perpetual spinner in the side chat.
+        upsertMessage(db, conv.id, {
+          ...m,
+          id: randomId(),
+          runId: undefined,
+          runStatus: undefined,
+          lastRunEventId: undefined,
+        });
       }
     }
     res.json({ conversation: conv });

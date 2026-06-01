@@ -878,6 +878,8 @@ export const fa: Dict = {
   'chat.deleteConversationConfirm':
     'آیا «{title}» حذف شود؟ این کار پیام‌های آن را حذف می‌کند.',
   'chat.untitledConversation': 'مکالمه بدون عنوان',
+  'chat.forkedConversationTitle': 'فورک {title}',
+  'chat.forkConversationFailed': 'فورک کردن این مکالمه ممکن نبود.',
   'chat.startTitle': 'یک مکالمه شروع کنید',
   'chat.startHint': "آنچه می‌خواهید بسازید را توصیف کنید، یا از یکی از این نمونه‌ها شروع کنید:",
   'chat.fillInputTitle': 'برای پر کردن ورودی کلیک کنید',
@@ -1347,6 +1349,8 @@ export const fa: Dict = {
   'assistant.workingLabel': 'در حال کار',
   'assistant.doneLabel': 'انجام شد',
   'assistant.copyMarkdown': 'کپی Markdown پاسخ',
+  'assistant.forkConversation': 'فورک از اینجا',
+  'assistant.forkingConversation': 'در حال فورک…',
   'assistant.feedbackPrompt': 'بازخورد',
   'assistant.feedbackPositive': 'مفید',
   'assistant.feedbackNegative': 'غیرمفید',

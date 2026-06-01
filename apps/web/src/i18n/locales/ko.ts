@@ -856,6 +856,8 @@ export const ko: Dict = {
   'chat.deleteConversationConfirm':
     '"{title}" 대화를 삭제하시겠습니까? 관련 메시지가 모두 삭제됩니다.',
   'chat.untitledConversation': '제목 없는 대화',
+  'chat.forkedConversationTitle': '{title} 포크',
+  'chat.forkConversationFailed': '이 대화를 포크할 수 없습니다.',
   'chat.startTitle': '대화 시작하기',
   'chat.startHint': "생성하고 싶은 내용을 설명하거나 아래 예시에서 시작하세요:",
   'chat.fillInputTitle': '클릭하여 입력창에 채우기',
@@ -1366,6 +1368,8 @@ export const ko: Dict = {
   'assistant.workingLabel': '작업 중',
   'assistant.doneLabel': '완료됨',
   'assistant.copyMarkdown': '응답 Markdown 복사',
+  'assistant.forkConversation': '여기서 포크',
+  'assistant.forkingConversation': '포크 중…',
   'assistant.feedbackPrompt': '피드백',
   'assistant.feedbackPositive': '도움 됨',
   'assistant.feedbackNegative': '도움 안 됨',

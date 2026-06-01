@@ -247,8 +247,13 @@ export async function createConversation(
   projectId: string,
   title?: string,
   // Side Chat: seed the new conversation with another conversation's context
-  // by copying its messages. The daemon ignores a missing/foreign source id.
-  opts?: { seedFromConversationId?: string | null; sessionMode?: ChatSessionMode },
+  // by copying its messages. `forkAfterMessageId` narrows that copy to a
+  // specific point in the source history.
+  opts?: {
+    seedFromConversationId?: string | null;
+    forkAfterMessageId?: string | null;
+    sessionMode?: ChatSessionMode;
+  },
 ): Promise<Conversation | null> {
   try {
     const body: CreateConversationRequest = { title };
@@ -257,6 +262,9 @@ export async function createConversation(
     }
     if (opts?.seedFromConversationId) {
       body.seedFromConversationId = opts.seedFromConversationId;
+    }
+    if (opts?.forkAfterMessageId) {
+      body.forkAfterMessageId = opts.forkAfterMessageId;
     }
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations`,

@@ -945,7 +945,7 @@
 .db-start-hero {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: flex-end;
   max-width: 1180px;
@@ -994,35 +994,6 @@
   color: var(--text-muted);
   font-size: 13.5px;
   line-height: 1.5;
-}
-.db-agent-card {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-tint) 75%, var(--bg-panel)) 0%, var(--accent-tint) 100%);
-  padding: 9px 15px;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.db-agent-card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--accent-strong);
-  font-size: 12.5px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-.db-agent-card-title svg {
-  color: var(--accent);
-}
-.db-agent-card p {
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  line-height: 1.45;
 }
 /* ---- Filter toolbar (category chips + search) ---------------------------- */
 .db-reference-toolbar {
@@ -1341,22 +1312,6 @@
 }
 .db-reference-actions button:hover:not(:disabled) svg {
   color: var(--text);
-}
-/* The "Task" action (last) is the accent-tinted primary affordance. */
-.db-reference-actions button:last-child {
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
-  background: var(--accent-tint);
-  color: var(--accent-strong);
-}
-.db-reference-actions button:last-child svg {
-  color: var(--accent);
-}
-.db-reference-actions button:last-child:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-}
-.db-reference-actions button:last-child:hover:not(:disabled) svg {
-  color: var(--accent-strong);
 }
 .db-reference-actions button:disabled {
   opacity: 0.46;

@@ -316,6 +316,13 @@ export interface CreateConversationRequest {
    * conversation.
    */
   seedFromConversationId?: string | null;
+  /**
+   * When paired with `seedFromConversationId`, copy only source messages up to
+   * and including this message. Used by the chat "Fork" action so the new
+   * conversation resumes from a specific assistant turn instead of inheriting
+   * future follow-ups from the source conversation.
+   */
+  forkAfterMessageId?: string | null;
 }
 
 export interface UpdateConversationRequest {

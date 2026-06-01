@@ -856,6 +856,8 @@ export const pl: Dict = {
   'chat.deleteConversationConfirm':
       'Usunąć „{title}”? Spowoduje to usunięcie wszystkich wiadomości.',
   'chat.untitledConversation': 'Rozmowa bez tytułu',
+  'chat.forkedConversationTitle': 'Fork {title}',
+  'chat.forkConversationFailed': 'Nie udało się sforkować tej rozmowy.',
   'chat.startTitle': 'Zacznij rozmowę',
   'chat.startHint': "Opisz, co chcesz wygenerować, albo zacznij od jednego z tych przykładów:",
   'chat.fillInputTitle': 'Kliknij, aby wypełnić pole tekstowe',
@@ -1366,6 +1368,8 @@ export const pl: Dict = {
   'assistant.workingLabel': 'Pracuję',
   'assistant.doneLabel': 'Gotowe',
   'assistant.copyMarkdown': 'Kopiuj Markdown odpowiedzi',
+  'assistant.forkConversation': 'Fork od tego miejsca',
+  'assistant.forkingConversation': 'Tworzenie forka…',
   'assistant.feedbackPrompt': 'Opinia',
   'assistant.feedbackPositive': 'Pomocne',
   'assistant.feedbackNegative': 'Niepomocne',

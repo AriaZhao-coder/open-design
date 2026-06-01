@@ -128,6 +128,99 @@ describe('GET /api/projects/:id resolvedDir', () => {
     expect(body.project.metadata?.skipDiscoveryBrief).toBe(true);
   });
 
+  it('forks a seeded conversation through a selected message', async () => {
+    const projectId = `proj-conv-fork-${Date.now()}`;
+    const createProjectResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Conversation fork fixture',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createProjectResp.status).toBe(200);
+
+    const sourceResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Source', sessionMode: 'chat' }),
+    });
+    expect(sourceResp.status).toBe(200);
+    const sourceBody = (await sourceResp.json()) as { conversation: { id: string } };
+    const sourceId = sourceBody.conversation.id;
+    const seedMessages = [
+      { id: 'fork-user-1', role: 'user', content: 'first ask' },
+      {
+        id: 'fork-assistant-1',
+        role: 'assistant',
+        content: 'first answer',
+        runId: 'source-run-1',
+        runStatus: 'succeeded',
+        lastRunEventId: 'evt-1',
+      },
+      { id: 'fork-user-2', role: 'user', content: 'second ask' },
+      { id: 'fork-assistant-2', role: 'assistant', content: 'second answer' },
+    ];
+    for (const message of seedMessages) {
+      const saveResp = await fetch(
+        `${baseUrl}/api/projects/${projectId}/conversations/${sourceId}/messages/${message.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message),
+        },
+      );
+      expect(saveResp.status).toBe(200);
+    }
+
+    const forkResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Fork',
+        seedFromConversationId: sourceId,
+        forkAfterMessageId: 'fork-assistant-1',
+      }),
+    });
+    expect(forkResp.status).toBe(200);
+    const forkBody = (await forkResp.json()) as {
+      conversation: { id: string; title: string; sessionMode: string };
+    };
+    expect(forkBody.conversation.title).toBe('Fork');
+    expect(forkBody.conversation.sessionMode).toBe('chat');
+
+    const forkMessagesResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${forkBody.conversation.id}/messages`,
+    );
+    expect(forkMessagesResp.status).toBe(200);
+    const forkMessagesBody = (await forkMessagesResp.json()) as {
+      messages: Array<{
+        id: string;
+        role: string;
+        content: string;
+        runId?: string;
+        runStatus?: string;
+        lastRunEventId?: string;
+      }>;
+    };
+    expect(forkMessagesBody.messages.map((message) => message.content)).toEqual([
+      'first ask',
+      'first answer',
+    ]);
+    expect(forkMessagesBody.messages.map((message) => message.id)).not.toContain(
+      'fork-assistant-1',
+    );
+    expect(forkMessagesBody.messages[1]).toMatchObject({
+      role: 'assistant',
+      content: 'first answer',
+    });
+    expect(forkMessagesBody.messages[1]?.runId).toBeUndefined();
+    expect(forkMessagesBody.messages[1]?.runStatus).toBeUndefined();
+    expect(forkMessagesBody.messages[1]?.lastRunEventId).toBeUndefined();
+  });
+
   it('serves project files through raw and files path routes', async () => {
     const projectId = `proj-raw-route-${Date.now()}`;
     const createResp = await fetch(`${baseUrl}/api/projects`, {

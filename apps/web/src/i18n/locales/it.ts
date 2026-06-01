@@ -773,6 +773,8 @@ export const it: Dict = {
   'chat.deleteConversationConfirm':
     'Eliminare « {title} » ? Questo elimina i suoi messaggi.',
   'chat.untitledConversation': 'Conversazione senza titolo',
+  'chat.forkedConversationTitle': 'Fork di {title}',
+  'chat.forkConversationFailed': 'Impossibile creare un fork di questa conversazione.',
   'chat.startTitle': 'Inizia una conversazione',
   'chat.startHint': "Descrivi ciò che vuoi generare oppure parti da uno di questi esempi:",
   'chat.fillInputTitle': 'Clicca per riempire il campo',
@@ -1266,6 +1268,8 @@ export const it: Dict = {
   'assistant.workingLabel': 'In corso',
   'assistant.doneLabel': 'Completato',
   'assistant.copyMarkdown': 'Copia il Markdown della risposta',
+  'assistant.forkConversation': 'Fork da qui',
+  'assistant.forkingConversation': 'Creazione fork…',
   'assistant.emptyResponseLabel': 'Nessun output',
   'assistant.emptyResponseMessage': 'Il provider ha terminato la richiesta senza restituire testo o un artefatto. Prova un altro modello o provider, controlla la quota o riprova.',
   'assistant.unfinishedLabel': 'Fermato con lavoro non completato',

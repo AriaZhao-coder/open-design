@@ -152,7 +152,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'daemon-url', 'name', 'skill', 'design-system', 'plugin', 'metadata-json',
   'pending-prompt', 'project', 'conversation', 'message', 'path', 'as',
   'agent', 'model', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
-  'title', 'against', 'seed-from', 'mode',
+  'title', 'against', 'seed-from', 'fork-after', 'mode',
 ]);
 const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow']);
 // `od automation …` mirrors the Automations tab. Same surface, same
@@ -343,10 +343,10 @@ function printRootHelp() {
   od ui <list|show|respond|revoke|prefill> [args]
       Read and answer GenUI surfaces (form / choice / confirmation / oauth-prompt) headlessly.
 
-  od chat new --project <id> [--seed-from <cid>] [--title "<t>"] [--json]
+  od chat new --project <id> [--seed-from <cid>] [--fork-after <mid>] [--title "<t>"] [--json]
       Create a Side Chat: a new conversation that inherits another
-      conversation's context by copying its messages (--seed-from). Mirrors
-      the web "+" launcher's New Side Chat action.
+      conversation's context by copying its messages (--seed-from), optionally
+      stopping at one message (--fork-after). Mirrors the web chat fork action.
 
   od diagnostics export [<path>] [--json]
       Bundle daemon/web/desktop logs, machine info, and recent crash reports
@@ -5214,10 +5214,12 @@ function renderDiffLineContent(value) {
 async function runConversation(args) {
   if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
     console.log(`Usage:
-  od conversation new  <projectId> [--title "<title>"] [--seed-from <cid>] [--mode design|chat]
+  od conversation new  <projectId> [--title "<title>"] [--seed-from <cid>] [--fork-after <mid>] [--mode design|chat]
                                            Create a conversation in a project.
                                            --seed-from copies another
                                            conversation's messages in (Side Chat).
+                                           --fork-after stops the copy at one
+                                           source message.
   od conversation list <projectId>           List conversations in a project.
   od conversation info <conversationId>      Print one conversation.
 
@@ -5234,7 +5236,7 @@ Common options:
     case 'new': {
       const [id] = positionalArgs(rest, PROJECT_STRING_FLAGS);
       if (!id) {
-        console.error('Usage: od conversation new <projectId> [--title "<title>"] [--seed-from <cid>]');
+        console.error('Usage: od conversation new <projectId> [--title "<title>"] [--seed-from <cid>] [--fork-after <mid>]');
         process.exit(2);
       }
       const body = {};
@@ -5243,6 +5245,13 @@ Common options:
       if (sessionMode) body.sessionMode = sessionMode;
       if (typeof flags['seed-from'] === 'string' && flags['seed-from']) {
         body.seedFromConversationId = flags['seed-from'];
+      }
+      if (typeof flags['fork-after'] === 'string' && flags['fork-after']) {
+        if (!body.seedFromConversationId) {
+          console.error('--fork-after requires --seed-from');
+          process.exit(2);
+        }
+        body.forkAfterMessageId = flags['fork-after'];
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/conversations`, {
         method:  'POST',
@@ -5289,21 +5298,23 @@ Common options:
 // ---------------------------------------------------------------------------
 // Subcommand: od chat  (Side Chat — context-seeded conversations)
 //
-// `od chat new --project <id> [--seed-from <cid>] [--title "<t>"] [--json]`
+// `od chat new --project <id> [--seed-from <cid>] [--fork-after <mid>] [--title "<t>"] [--json]`
 //   Creates a new conversation that inherits another conversation's context
-//   by copying its messages. Mirrors the web "+ Side Chat" launcher and POSTs
-//   to the same /api/projects/:id/conversations endpoint the UI uses. This is
-//   the CLI half of the dual-track surface for context-seeded conversations.
+//   by copying its messages, optionally truncating at one source message.
+//   Mirrors the web chat fork action and POSTs to the same
+//   /api/projects/:id/conversations endpoint the UI uses. This is the CLI half
+//   of the dual-track surface for context-seeded conversations.
 // ---------------------------------------------------------------------------
 
 async function runChat(args) {
   if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
     console.log(`Usage:
-  od chat new --project <id> [--seed-from <cid>] [--title "<title>"] [--mode design|chat] [--json]
+  od chat new --project <id> [--seed-from <cid>] [--fork-after <mid>] [--title "<title>"] [--mode design|chat] [--json]
                                            Create a Side Chat — a new conversation
                                            that copies in another conversation's
-                                           context (--seed-from) so the new chat
-                                           starts with the same messages.
+                                           context (--seed-from). Use
+                                           --fork-after to stop at one source
+                                           message.
 
 Common options:
   --daemon-url <url>   Open Design daemon HTTP base.
@@ -5322,7 +5333,7 @@ Common options:
         ? flags.project
         : positionalArgs(rest, PROJECT_STRING_FLAGS)[0];
       if (!id) {
-        console.error('Usage: od chat new --project <id> [--seed-from <cid>] [--title "<title>"]');
+        console.error('Usage: od chat new --project <id> [--seed-from <cid>] [--fork-after <mid>] [--title "<title>"]');
         process.exit(2);
       }
       const body = {};
@@ -5331,6 +5342,13 @@ Common options:
       if (sessionMode) body.sessionMode = sessionMode;
       if (typeof flags['seed-from'] === 'string' && flags['seed-from']) {
         body.seedFromConversationId = flags['seed-from'];
+      }
+      if (typeof flags['fork-after'] === 'string' && flags['fork-after']) {
+        if (!body.seedFromConversationId) {
+          console.error('--fork-after requires --seed-from');
+          process.exit(2);
+        }
+        body.forkAfterMessageId = flags['fork-after'];
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/conversations`, {
         method:  'POST',
@@ -5344,7 +5362,10 @@ Common options:
       const seeded = body.seedFromConversationId
         ? ` (seeded from ${body.seedFromConversationId})`
         : '';
-      console.log(`[chat] created ${conv?.id ?? '-'}${conv?.title ? ` "${conv.title}"` : ''}${seeded} (mode ${conv?.sessionMode ?? sessionMode ?? 'design'})`);
+      const forked = body.forkAfterMessageId
+        ? ` through ${body.forkAfterMessageId}`
+        : '';
+      console.log(`[chat] created ${conv?.id ?? '-'}${conv?.title ? ` "${conv.title}"` : ''}${seeded}${forked} (mode ${conv?.sessionMode ?? sessionMode ?? 'design'})`);
       return;
     }
     default:

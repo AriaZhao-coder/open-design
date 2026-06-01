@@ -856,6 +856,8 @@ export const hu: Dict = {
   'chat.deleteConversationConfirm':
     'Törlöd a(z) „{title}" beszélgetést? Ez eltávolítja az üzeneteit.',
   'chat.untitledConversation': 'Cím nélküli beszélgetés',
+  'chat.forkedConversationTitle': '{title} fork',
+  'chat.forkConversationFailed': 'Nem sikerült forkot létrehozni ebből a beszélgetésből.',
   'chat.startTitle': 'Indíts beszélgetést',
   'chat.startHint': "Írd le, mit szeretnél létrehozni, vagy indulj ki az egyik példából:",
   'chat.fillInputTitle': 'Kattints a beviteli mező kitöltéséhez',
@@ -1366,6 +1368,8 @@ export const hu: Dict = {
   'assistant.workingLabel': 'Dolgozik',
   'assistant.doneLabel': 'Kész',
   'assistant.copyMarkdown': 'Válasz Markdown másolása',
+  'assistant.forkConversation': 'Fork innen',
+  'assistant.forkingConversation': 'Fork létrehozása…',
   'assistant.feedbackPrompt': 'Visszajelzés',
   'assistant.feedbackPositive': 'Hasznos',
   'assistant.feedbackNegative': 'Nem hasznos',

@@ -6,7 +6,6 @@ import {
   REFERENCE_GROUPS,
   REFERENCE_TOTAL,
   browserFileName,
-  browserHarnessTaskMarkdown,
   faviconUrl,
   filterReferenceGroups,
   formatAddressDisplay,
@@ -201,22 +200,6 @@ describe('isHistoryUrl', () => {
   });
 });
 
-describe('browserHarnessTaskMarkdown', () => {
-  it('embeds the target URL and the browser-harness command', () => {
-    const md = browserHarnessTaskMarkdown('proj-123', 'https://example.com/ref');
-    expect(md).toContain('Target URL: https://example.com/ref');
-    expect(md).toContain('Open Design project: proj-123');
-    expect(md).toContain('browser-harness');
-    expect(md).toContain('new_tab("https://example.com/ref")');
-  });
-
-  it('uses the current-project fallback line when projectId is empty', () => {
-    const md = browserHarnessTaskMarkdown('', 'https://example.com/ref');
-    expect(md).toContain('Open Design project: current project');
-    expect(md).not.toContain('Open Design project: \n');
-  });
-});
-
 describe('pageBriefMarkdown', () => {
   it('renders title, source, and populated sections while skipping empty ones', () => {
     const md = pageBriefMarkdown(
@@ -242,7 +225,7 @@ describe('pageBriefMarkdown', () => {
     expect(md).toContain('- Docs - https://example.com/docs');
     expect(md).toContain('## Colors');
     expect(md).toContain('- rgb(0, 0, 0) (4)');
-    expect(md).toContain('## Browser Harness follow-up');
+    expect(md).not.toContain('Browser Harness');
   });
 
   it('falls back to label and url when the brief omits them', () => {
@@ -407,7 +390,6 @@ describe('REFERENCE_GROUPS catalogue', () => {
       'https://startups.gallery/',
       'https://www.worldindots.com/',
       'https://getdesign.md/',
-      'https://github.com/browser-use/browser-harness',
       'https://github.com/superset-sh/superset',
       'https://svglogos.dev/',
       'https://icons.lobehub.com/',

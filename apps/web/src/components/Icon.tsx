@@ -24,6 +24,7 @@ export type IconName =
   | 'file-code'
   | 'folder'
   | 'folder-filled'
+  | 'fork'
   | 'github'
   | 'github-filled'
   | 'grip-vertical'
@@ -261,6 +262,16 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: Props) {
       return (
         <svg {...common}>
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </svg>
+      );
+    case 'fork':
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="6" r="3" />
+          <circle cx="18" cy="18" r="3" />
+          <path d="M8.6 15.4 15.4 8.6" />
+          <path d="M9 18h6" />
         </svg>
       );
     case 'folder-filled':

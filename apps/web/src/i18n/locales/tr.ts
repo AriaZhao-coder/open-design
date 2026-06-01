@@ -845,6 +845,8 @@ export const tr: Dict = {
   'chat.deleteConversationConfirm':
     '"{title}"’ı sil? Bu mesajları silecektir.',
   'chat.untitledConversation': 'Başlıksız konuşma',
+  'chat.forkedConversationTitle': '{title} fork',
+  'chat.forkConversationFailed': 'Bu konuşma fork edilemedi.',
   'chat.startTitle': 'Bir konuşma başlat',
   'chat.startHint': "Oluşturmak istediğiniz şeyi açıklayın veya bu örneklerden biriyle başlayın:",
   'chat.fillInputTitle': 'İstemi doldurmak için tıklayın',
@@ -1353,6 +1355,8 @@ export const tr: Dict = {
   'assistant.workingLabel': 'Çalışıyor',
   'assistant.doneLabel': 'Bitti',
   'assistant.copyMarkdown': 'Yanıt Markdown\'unu kopyala',
+  'assistant.forkConversation': 'Buradan fork et',
+  'assistant.forkingConversation': 'Fork ediliyor…',
   'assistant.feedbackPrompt': 'Geri bildirim',
   'assistant.feedbackPositive': 'Yararlı',
   'assistant.feedbackNegative': 'Yararlı değil',

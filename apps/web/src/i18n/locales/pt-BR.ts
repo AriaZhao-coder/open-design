@@ -877,6 +877,8 @@ export const ptBR: Dict = {
   'chat.deleteConversationConfirm':
     'Excluir "{title}"? Isso remove as mensagens.',
   'chat.untitledConversation': 'Conversa sem título',
+  'chat.forkedConversationTitle': 'Fork de {title}',
+  'chat.forkConversationFailed': 'Não foi possível bifurcar esta conversa.',
   'chat.startTitle': 'Comece uma conversa',
   'chat.startHint': "Descreva o que você quer gerar ou comece por um destes exemplos:",
   'chat.fillInputTitle': 'Clique para preencher o campo',
@@ -1407,6 +1409,8 @@ export const ptBR: Dict = {
   'assistant.workingLabel': 'Trabalhando',
   'assistant.doneLabel': 'Concluído',
   'assistant.copyMarkdown': 'Copiar Markdown da resposta',
+  'assistant.forkConversation': 'Bifurcar daqui',
+  'assistant.forkingConversation': 'Bifurcando…',
   'assistant.feedbackPrompt': 'Feedback',
   'assistant.feedbackPositive': 'Útil',
   'assistant.feedbackNegative': 'Não útil',

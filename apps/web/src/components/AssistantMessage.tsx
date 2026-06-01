@@ -313,6 +313,8 @@ interface Props {
   // to AssistantMessage; ProjectView wires it into onSend.
   onSubmitForm?: (text: string) => void;
   onContinueRemainingTasks?: (todos: TodoItem[]) => void;
+  onForkFromMessage?: () => void;
+  forking?: boolean;
   onFeedback?: (change: ChatMessageFeedbackChange) => void;
   suppressDirectionForms?: boolean;
   hasDesignSystemContext?: boolean;
@@ -344,6 +346,8 @@ export function AssistantMessage({
   nextUserContent,
   onSubmitForm,
   onContinueRemainingTasks,
+  onForkFromMessage,
+  forking = false,
   onFeedback,
   suppressDirectionForms = false,
   hasDesignSystemContext = false,
@@ -460,6 +464,7 @@ export function AssistantMessage({
     !!isLast &&
     unfinishedTodos.length > 0 &&
     !!onContinueRemainingTasks;
+  const canFork = !streaming && !!onForkFromMessage;
   const copyMarkdown = message.content.trim().length > 0 ? message.content : undefined;
   const showFeedback =
     !!onFeedback &&
@@ -477,7 +482,8 @@ export function AssistantMessage({
     !!usage ||
     unfinishedTodos.length > 0 ||
     hasEmptyResponse ||
-    !!copyMarkdown;
+    !!copyMarkdown ||
+    canFork;
   // Track which forms the user submitted in this session so we lock them
   // immediately on click (without waiting for the parent to re-render).
   const [locallySubmitted, setLocallySubmitted] = useState<Set<string>>(
@@ -662,6 +668,8 @@ export function AssistantMessage({
                   hasUnfinishedTodos: unfinishedTodos.length > 0,
                   hasEmptyResponse,
                   copyMarkdown,
+                  onFork: canFork ? onForkFromMessage : undefined,
+                  forking,
                   forceVisible: true,
                 }}
               />
@@ -674,6 +682,8 @@ export function AssistantMessage({
                 hasUnfinishedTodos={unfinishedTodos.length > 0}
                 hasEmptyResponse={hasEmptyResponse}
                 copyMarkdown={copyMarkdown}
+                onFork={canFork ? onForkFromMessage : undefined}
+                forking={forking}
               />
             )}
           </div>
@@ -800,6 +810,8 @@ interface AssistantFooterProps {
   hasUnfinishedTodos: boolean;
   hasEmptyResponse: boolean;
   copyMarkdown?: string;
+  onFork?: () => void;
+  forking?: boolean;
   feedbackControls?: ReactNode;
   forceVisible?: boolean;
 }
@@ -812,6 +824,8 @@ function AssistantFooter({
   hasUnfinishedTodos,
   hasEmptyResponse,
   copyMarkdown,
+  onFork,
+  forking = false,
   feedbackControls,
   forceVisible = false,
 }: AssistantFooterProps) {
@@ -824,7 +838,8 @@ function AssistantFooter({
     !usage &&
     !hasUnfinishedTodos &&
     !hasEmptyResponse &&
-    !copyMarkdown
+    !copyMarkdown &&
+    !onFork
   )
     return null;
   return (
@@ -851,13 +866,44 @@ function AssistantFooter({
           ? ` · $${usage.costUsd.toFixed(4)}`
           : ""}
       </span>
-      {copyMarkdown || feedbackControls ? (
+      {copyMarkdown || onFork || feedbackControls ? (
         <span className="assistant-footer-controls">
           {copyMarkdown ? <AssistantMarkdownCopyButton markdown={copyMarkdown} /> : null}
+          {onFork ? (
+            <AssistantForkButton
+              disabled={forking}
+              onFork={onFork}
+            />
+          ) : null}
           {feedbackControls}
         </span>
       ) : null}
     </div>
+  );
+}
+
+function AssistantForkButton({
+  disabled,
+  onFork,
+}: {
+  disabled: boolean;
+  onFork: () => void;
+}) {
+  const t = useT();
+  const label = disabled
+    ? t("assistant.forkingConversation")
+    : t("assistant.forkConversation");
+  return (
+    <button
+      type="button"
+      className="assistant-copy-button"
+      disabled={disabled}
+      onClick={onFork}
+      aria-label={label}
+      title={label}
+    >
+      <Icon name={disabled ? "spinner" : "fork"} size={13} />
+    </button>
   );
 }
 

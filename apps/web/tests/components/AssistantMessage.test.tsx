@@ -102,6 +102,38 @@ describe('AssistantMessage feedback gate', () => {
     }
   });
 
+  it('calls the fork handler from completed assistant turns', () => {
+    const onForkFromMessage = vi.fn();
+    render(
+      <AssistantMessage
+        message={baseMessage()}
+        streaming={false}
+        projectId="proj-1"
+        onForkFromMessage={onForkFromMessage}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fork from here' }));
+
+    expect(onForkFromMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show the fork action while the assistant is streaming', () => {
+    render(
+      <AssistantMessage
+        message={baseMessage({
+          runStatus: 'running',
+          endedAt: undefined,
+        })}
+        streaming
+        projectId="proj-1"
+        onForkFromMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Fork from here' })).toBeNull();
+  });
+
   it('shows the feedback widget after a successful turn that produced files', () => {
     render(
       <AssistantMessage

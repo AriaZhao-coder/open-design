@@ -1830,6 +1830,8 @@ export interface Dict {
   'chat.renameConversationLabel': string;
   'chat.deleteConversationConfirm': string;
   'chat.untitledConversation': string;
+  'chat.forkedConversationTitle': string;
+  'chat.forkConversationFailed': string;
   'chat.startTitle': string;
   'chat.startHint': string;
   'chat.fillInputTitle': string;
@@ -2453,6 +2455,8 @@ export interface Dict {
   'assistant.workingLabel': string;
   'assistant.doneLabel': string;
   'assistant.copyMarkdown': string;
+  'assistant.forkConversation': string;
+  'assistant.forkingConversation': string;
   'assistant.feedbackPrompt': string;
   'assistant.feedbackPositive': string;
   'assistant.feedbackNegative': string;

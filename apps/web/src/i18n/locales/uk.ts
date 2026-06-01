@@ -878,6 +878,8 @@ export const uk: Dict = {
   'chat.deleteConversationConfirm':
     'Видалити "{title}"? Це видалить усі її повідомлення.',
   'chat.untitledConversation': 'Розмова без назви',
+  'chat.forkedConversationTitle': 'Форк {title}',
+  'chat.forkConversationFailed': 'Не вдалося створити форк цієї розмови.',
   'chat.startTitle': 'Почніть розмову',
   'chat.startHint': "Опишіть, що хочете згенерувати, або почніть з одного з цих прикладів:",
   'chat.fillInputTitle': 'Натисніть, щоб заповнити введення',
@@ -1408,6 +1410,8 @@ export const uk: Dict = {
   'assistant.workingLabel': 'Роботи',
   'assistant.doneLabel': 'Готово',
   'assistant.copyMarkdown': 'Скопіювати Markdown відповіді',
+  'assistant.forkConversation': 'Створити форк звідси',
+  'assistant.forkingConversation': 'Створення форка…',
   'assistant.feedbackPrompt': 'Відгук',
   'assistant.feedbackPositive': 'Корисно',
   'assistant.feedbackNegative': 'Не корисно',

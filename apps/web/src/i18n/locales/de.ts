@@ -744,6 +744,8 @@ export const de: Dict = {
   'chat.deleteConversationConfirm':
     '„{title}“ löschen? Dadurch werden die Nachrichten entfernt.',
   'chat.untitledConversation': 'Konversation ohne Titel',
+  'chat.forkedConversationTitle': '{title} Fork',
+  'chat.forkConversationFailed': 'Diese Konversation konnte nicht geforkt werden.',
   'chat.startTitle': 'Konversation starten',
   'chat.startHint': "Beschreiben Sie, was Sie generieren möchten, oder starten Sie mit einem dieser Beispiele:",
   'chat.fillInputTitle': 'Klicken, um die Eingabe zu füllen',
@@ -1254,6 +1256,8 @@ export const de: Dict = {
   'assistant.workingLabel': 'Arbeitet',
   'assistant.doneLabel': 'Fertig',
   'assistant.copyMarkdown': 'Antwort-Markdown kopieren',
+  'assistant.forkConversation': 'Ab hier forken',
+  'assistant.forkingConversation': 'Fork wird erstellt…',
   'assistant.feedbackPrompt': 'Feedback',
   'assistant.feedbackPositive': 'Hilfreich',
   'assistant.feedbackNegative': 'Nicht hilfreich',

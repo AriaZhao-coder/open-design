@@ -626,6 +626,7 @@ export function ProjectView({
   const [conversationLoadError, setConversationLoadError] = useState<string | null>(null);
   const [messageLoadRetryNonce, setMessageLoadRetryNonce] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
   const [activePluginActionPaths, setActivePluginActionPaths] = useState<Set<string>>(() => new Set());
   const [hiddenAssistantPluginActionPaths, setHiddenAssistantPluginActionPaths] = useState<Set<string>>(() => new Set());
   const [forceStreamingPluginMessageIds, setForceStreamingPluginMessageIds] = useState<Set<string>>(() => new Set());
@@ -3931,6 +3932,66 @@ export function ProjectView({
     [project.id, t, onProjectsRefresh],
   );
 
+  const handleForkFromMessage = useCallback(
+    async (assistantMessage: ChatMessage) => {
+      if (!activeConversationId || forkingMessageId) return;
+      setForkingMessageId(assistantMessage.id);
+      setConversationLoadError(null);
+      try {
+        const sourceTitle = activeConversation?.title?.trim();
+        const forkTitle = sourceTitle
+          ? t('chat.forkedConversationTitle', { title: sourceTitle })
+          : undefined;
+        const fresh = await createConversation(project.id, forkTitle, {
+          seedFromConversationId: activeConversationId,
+          forkAfterMessageId: assistantMessage.id,
+          sessionMode: activeSessionMode,
+        });
+        if (!fresh) throw new Error(t('chat.forkConversationFailed'));
+        setMessages([]);
+        setPreviewComments([]);
+        setAttachedComments([]);
+        setArtifact(null);
+        setStreaming(false);
+        streamingConversationIdRef.current = null;
+        setStreamingConversationId(null);
+        setMessagesConversationId(null);
+        messagesConversationIdRef.current = null;
+        setFailedMessagesConversationId(null);
+        setConversations((curr) => [fresh, ...curr.filter((c) => c.id !== fresh.id)]);
+        setActiveConversationId(fresh.id);
+        navigate(
+          {
+            kind: 'project',
+            projectId: project.id,
+            conversationId: fresh.id,
+            fileName: openTabsState.active ?? null,
+          },
+          { replace: true },
+        );
+        onProjectsRefresh();
+        setError(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : t('chat.forkConversationFailed');
+        setConversationLoadError(message);
+        setError(message);
+      } finally {
+        setForkingMessageId(null);
+      }
+    },
+    [
+      activeConversationId,
+      activeConversation?.title,
+      activeSessionMode,
+      forkingMessageId,
+      navigate,
+      onProjectsRefresh,
+      openTabsState.active,
+      project.id,
+      t,
+    ],
+  );
+
   const handleProjectRename = useCallback(
     (newName: string) => {
       const trimmed = newName.trim();
@@ -4885,6 +4946,8 @@ export function ProjectView({
               }}
               onContinueRemainingTasks={handleContinueRemainingTasks}
               onAssistantFeedback={handleAssistantFeedback}
+              onForkFromMessage={handleForkFromMessage}
+              forkingMessageId={forkingMessageId}
               onNewConversation={handleNewConversation}
               newConversationDisabled={newConversationDisabled}
               conversations={conversations}

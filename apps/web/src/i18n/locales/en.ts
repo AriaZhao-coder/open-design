@@ -1515,6 +1515,8 @@ export const en: Dict = {
   'chat.deleteConversationConfirm':
     'Delete "{title}"? This removes its messages.',
   'chat.untitledConversation': 'Untitled conversation',
+  'chat.forkedConversationTitle': '{title} fork',
+  'chat.forkConversationFailed': 'Could not fork this conversation.',
   'chat.startTitle': 'Start a conversation',
   'chat.startHint': "Describe what you want to generate, or start from one of these examples:",
   'chat.fillInputTitle': 'Click to fill the input',
@@ -2136,6 +2138,8 @@ export const en: Dict = {
   'assistant.workingLabel': 'Working',
   'assistant.doneLabel': 'Done',
   'assistant.copyMarkdown': 'Copy response markdown',
+  'assistant.forkConversation': 'Fork from here',
+  'assistant.forkingConversation': 'Forking…',
   'assistant.feedbackPrompt': 'Feedback',
   'assistant.feedbackPositive': 'Helpful',
   'assistant.feedbackNegative': 'Not helpful',

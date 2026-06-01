@@ -743,6 +743,8 @@ export const ja: Dict = {
   'chat.deleteConversationConfirm':
     '"{title}" を削除しますか？メッセージも削除されます。',
   'chat.untitledConversation': '無題の会話',
+  'chat.forkedConversationTitle': '{title} のフォーク',
+  'chat.forkConversationFailed': 'この会話をフォークできませんでした。',
   'chat.startTitle': '会話を始める',
   'chat.startHint': "生成したい内容を説明するか、以下の例から始めてください:",
   'chat.fillInputTitle': 'クリックして入力欄に入力',
@@ -1253,6 +1255,8 @@ export const ja: Dict = {
   'assistant.workingLabel': '作業中',
   'assistant.doneLabel': '完了',
   'assistant.copyMarkdown': '応答のMarkdownをコピー',
+  'assistant.forkConversation': 'ここからフォーク',
+  'assistant.forkingConversation': 'フォーク中…',
   'assistant.feedbackPrompt': 'フィードバック',
   'assistant.feedbackPositive': '役に立った',
   'assistant.feedbackNegative': '役に立たなかった',

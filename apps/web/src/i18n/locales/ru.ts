@@ -877,6 +877,8 @@ export const ru: Dict = {
   'chat.deleteConversationConfirm':
     'Удалить «{title}»? Это удалит его сообщения.',
   'chat.untitledConversation': 'Разговор без названия',
+  'chat.forkedConversationTitle': 'Форк {title}',
+  'chat.forkConversationFailed': 'Не удалось создать форк этого разговора.',
   'chat.startTitle': 'Начать разговор',
   'chat.startHint': "Опишите, что хотите сгенерировать, или начните с одного из этих примеров:",
   'chat.fillInputTitle': 'Нажмите, чтобы заполнить ввод',
@@ -1407,6 +1409,8 @@ export const ru: Dict = {
   'assistant.workingLabel': 'Работает',
   'assistant.doneLabel': 'Готово',
   'assistant.copyMarkdown': 'Скопировать Markdown ответа',
+  'assistant.forkConversation': 'Создать форк отсюда',
+  'assistant.forkingConversation': 'Создание форка…',
   'assistant.feedbackPrompt': 'Отзыв',
   'assistant.feedbackPositive': 'Полезно',
   'assistant.feedbackNegative': 'Не полезно',
