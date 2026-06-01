@@ -708,7 +708,7 @@ export function ProjectView({
   const reattachControllersRef = useRef<Map<string, AbortController>>(new Map());
   const reattachCancelControllersRef = useRef<Map<string, AbortController>>(new Map());
   const completedReattachRunsRef = useRef<Set<string>>(new Set());
-  const startingQueuedChatSendIdRef = useRef<string | null>(null);
+  const [queuedAutoStartBlocked, setQueuedAutoStartBlocked] = useState(false);
   const skillCache = useRef<Map<string, string>>(new Map());
   const designCache = useRef<Map<string, string>>(new Map());
   const templateCache = useRef<Map<string, ProjectTemplate>>(new Map());
@@ -3080,17 +3080,17 @@ export function ProjectView({
 
   useEffect(() => {
     if (currentConversationBusy) {
-      startingQueuedChatSendIdRef.current = null;
+      if (queuedAutoStartBlocked) setQueuedAutoStartBlocked(false);
       return;
     }
-    if (startingQueuedChatSendIdRef.current) return;
+    if (queuedAutoStartBlocked) return;
     if (!activeConversationId) return;
     if (messagesConversationIdRef.current !== activeConversationId) return;
     const next = queuedChatSendsRef.current.find(
       (item) => item.conversationId === activeConversationId,
     );
     if (!next) return;
-    startingQueuedChatSendIdRef.current = next.id;
+    setQueuedAutoStartBlocked(true);
     void (async () => {
       const started = await handleSend(
         next.prompt,
@@ -3099,11 +3099,12 @@ export function ProjectView({
         next.meta,
       );
       if (started) removeQueuedChatSend(next.id);
-      else startingQueuedChatSendIdRef.current = null;
+      window.setTimeout(() => setQueuedAutoStartBlocked(false), 0);
     })();
   }, [
     activeConversationId,
     currentConversationBusy,
+    queuedAutoStartBlocked,
     queuedChatSends,
     handleSend,
     removeQueuedChatSend,
