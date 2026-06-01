@@ -7210,33 +7210,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
               ) : null}
             </>
           ) : null}
-          {!showPreviewToolbarControls ? (
-            <>
-              <button
-                type="button"
-                className={`viewer-action viewer-comment-toggle${boardMode && !commentCreateMode && boardTool === 'inspect' ? ' active' : ''}`}
-                data-testid="board-mode-toggle"
-                title={t('fileViewer.comment')}
-                aria-label={t('fileViewer.comment')}
-                aria-pressed={boardMode && !commentCreateMode && boardTool === 'inspect'}
-                onClick={activateCommentTool}
-              >
-                <RemixIcon name="chat-new-line" size={14} />
-                <span>{t('fileViewer.comment')}</span>
-              </button>
-              <button
-                type="button"
-                className={`viewer-action viewer-comment-toggle${boardMode && commentCreateMode ? ' active' : ''}`}
-                data-testid="comment-panel-toggle"
-                title={t('chat.tabComments')}
-                aria-pressed={boardMode && commentCreateMode}
-                onClick={activateCommentCreateTool}
-              >
-                <RemixIcon name="message-3-line" size={14} />
-                <span>{t('chat.tabComments')}</span>
-              </button>
-            </>
-          ) : null}
         </div>
       </div>
       {((filePrimaryActions: ReactNode) => (
