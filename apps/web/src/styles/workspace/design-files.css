@@ -1866,6 +1866,11 @@
   transition: opacity 120ms ease;
 }
 .df-row:hover .df-row-menu { opacity: 1; }
+/* Reveal the row action menu on hover/keyboard-focus natively, so file/dir rows
+   don't need a JS `hover` state that re-renders the whole panel on every row
+   mouseenter. The active-file / open-menu persistence is still driven inline. */
+.df-file-row:hover .df-row-menu,
+.df-file-row:focus-within .df-row-menu { opacity: 1; }
 .df-row-menu:focus { opacity: 1; }
 .df-row-menu:hover { background: var(--border); color: var(--text); }
 .df-section-more {

@@ -118,11 +118,10 @@ let plugins = [COMMUNITY_PLUGIN, USER_PLUGIN];
 let skills = [SKILL];
 let servers = [MCP_SERVER];
 
-function renderComposer(
+function composerElement(
   overrides: Partial<ComponentProps<typeof ChatComposer>> = {},
-  options: { locale?: Locale } = {},
 ) {
-  const tree = (
+  return (
     <ChatComposer
       projectId="project-1"
       projectFiles={[]}
@@ -135,6 +134,13 @@ function renderComposer(
       {...overrides}
     />
   );
+}
+
+function renderComposer(
+  overrides: Partial<ComponentProps<typeof ChatComposer>> = {},
+  options: { locale?: Locale } = {},
+) {
+  const tree = composerElement(overrides);
 
   return options.locale
     ? render(<I18nProvider initial={options.locale}>{tree}</I18nProvider>)
@@ -206,6 +212,40 @@ afterEach(() => {
 });
 
 describe('ChatComposer context pickers', () => {
+  it('auto-stages the active workspace context and re-stages after a tab change', async () => {
+    const onSend = vi.fn();
+    const fileContext = {
+      id: 'file:index.html',
+      kind: 'file' as const,
+      label: 'index.html',
+      path: 'index.html',
+      tabId: 'index.html',
+    };
+    const browserContext = {
+      id: 'browser:1',
+      kind: 'browser' as const,
+      label: 'Dribbble',
+      url: 'https://dribbble.com/',
+      tabId: '__browser__:1',
+    };
+    const view = renderComposer({ activeWorkspaceContext: fileContext, onSend });
+    await flushMounts();
+
+    expect(screen.getByTestId('staged-contexts').textContent).toContain('Currentindex.html');
+    fireEvent.click(screen.getByLabelText('Remove index.html'));
+    await waitFor(() => expect(screen.queryByText('index.html')).toBeNull());
+
+    view.rerender(composerElement({ activeWorkspaceContext: browserContext, onSend }));
+    await waitFor(() => expect(screen.getByTestId('staged-contexts').textContent).toContain('CurrentDribbble'));
+
+    await typeAndSettle('Use the current tab.');
+    fireEvent.click(screen.getByTestId('chat-send'));
+
+    await waitFor(() => expect(onSend).toHaveBeenCalled());
+    const meta = onSend.mock.calls[0]?.[3];
+    expect(meta?.context?.workspaceItems).toEqual([browserContext]);
+  });
+
   it('opens the @ panel even when every source is empty', async () => {
     plugins = [];
     skills = [];

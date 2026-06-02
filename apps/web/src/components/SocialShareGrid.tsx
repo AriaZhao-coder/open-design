@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SocialSharePlatform, SocialShareResponse } from '@open-design/contracts';
 import { useT } from '../i18n';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
@@ -51,6 +51,13 @@ interface Props {
 export function SocialShareGrid({ share, className, onAfterShare }: Props) {
   const t = useT();
   const [feedbackPlatform, setFeedbackPlatform] = useState<SocialSharePlatform | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current);
+    },
+    [],
+  );
   const platforms = Array.isArray(share.platforms) ? share.platforms : [];
 
   const copyAndOpen = async (
@@ -64,7 +71,9 @@ export function SocialShareGrid({ share, className, onAfterShare }: Props) {
       return;
     }
     setFeedbackPlatform(platform);
-    window.setTimeout(() => {
+    if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => {
+      feedbackTimerRef.current = null;
       setFeedbackPlatform((current) => (current === platform ? null : current));
     }, 1600);
     if (entryUrl) {

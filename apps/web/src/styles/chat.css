@@ -1267,6 +1267,20 @@
   transition: border-color 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .staged-chip:hover { border-color: var(--border-strong); }
+.staged-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+}
 .staged-context-row {
   padding-top: 2px;
 }
@@ -1293,6 +1307,19 @@
 .staged-context--connector .staged-icon {
   background: color-mix(in srgb, var(--green) 10%, var(--bg-subtle));
   color: var(--green);
+}
+.staged-context--workspace {
+  background: color-mix(in srgb, var(--bg-subtle) 74%, var(--bg-panel));
+  border-color: color-mix(in srgb, var(--text-muted) 20%, var(--border));
+}
+.staged-context--workspace .staged-icon {
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-subtle));
+  color: var(--text-muted);
+}
+.staged-context-kind {
+  margin-right: 4px;
+  color: var(--text-muted);
+  font-weight: 650;
 }
 .staged-chip img {
   display: block;

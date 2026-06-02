@@ -104,11 +104,12 @@ import {
   patchProject,
   saveMessage,
   startGeneratedPluginShareTask,
-  saveTabs,
+  cacheTabsLocally,
+  persistTabsToDaemonNow,
   type SaveMessageOptions,
   waitGeneratedPluginShareTask,
 } from '../state/projects';
-import type { AppliedPluginSnapshot, ChatSessionMode } from '@open-design/contracts';
+import type { AppliedPluginSnapshot, ChatSessionMode, WorkspaceContextItem } from '@open-design/contracts';
 import type {
   AgentEvent,
   AgentInfo,
@@ -267,6 +268,10 @@ const MIN_WORKSPACE_PANEL_WIDTH = 400;
 const SPLIT_RESIZE_HANDLE_WIDTH = 8;
 const CHAT_PANEL_KEYBOARD_STEP = 16;
 const DESIGN_SYSTEM_AUDIT_AUTO_REPAIR_ATTEMPTS = 2;
+// Trailing-debounce window for the canonical (daemon + SQLite) tab-state write.
+// Embedded-browser navigation bursts settle well within this; the local cache
+// is written immediately so nothing is lost if the daemon write is coalesced.
+const TAB_PERSIST_DEBOUNCE_MS = 400;
 const MIN_NORMAL_SPLIT_WIDTH =
   MIN_CHAT_PANEL_WIDTH + SPLIT_RESIZE_HANDLE_WIDTH + MIN_WORKSPACE_PANEL_WIDTH;
 type DesignSystemReviewEntry = NonNullable<ProjectMetadata['designSystemReview']>[string];
@@ -347,6 +352,37 @@ function mergeChatAttachments(...groups: ChatAttachment[][]): ChatAttachment[] {
     }
   }
   return out;
+}
+
+function historyWithWorkspaceContext(
+  history: ChatMessage[],
+  messageId: string,
+  context: ChatSendMeta['context'] | undefined,
+): ChatMessage[] {
+  const items = context?.workspaceItems ?? [];
+  if (items.length === 0) return history;
+  const block = [
+    '',
+    '',
+    '<active-workspace-context>',
+    'Open Design selected the currently focused workspace tab as the default context for this turn.',
+    ...items.map((item, index) => {
+      const details = [
+        item.path ? `path: ${item.path}` : null,
+        item.absolutePath ? `absolute: ${item.absolutePath}` : null,
+        item.url ? `url: ${item.url}` : null,
+        item.title ? `title: ${item.title}` : null,
+        item.tabId ? `tab: ${item.tabId}` : null,
+      ].filter(Boolean).join(' | ');
+      return `${index + 1}. ${item.kind}: ${item.label}${details ? ` | ${details}` : ''}`;
+    }),
+    '</active-workspace-context>',
+  ].join('\n');
+  return history.map((message) =>
+    message.id === messageId && message.role === 'user'
+      ? { ...message, content: `${message.content}${block}` }
+      : message,
+  );
 }
 
 function commentTaskQuery(attachment: ChatCommentAttachment): string {
@@ -496,6 +532,24 @@ function isStoredChatAttachment(value: unknown): value is ChatAttachment {
     record.name.length > 0 &&
     (record.kind === 'image' || record.kind === 'file') &&
     (record.size === undefined || typeof record.size === 'number')
+  );
+}
+
+function workspaceContextItemEqual(
+  a: WorkspaceContextItem | null,
+  b: WorkspaceContextItem | null,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.kind === b.kind &&
+    a.label === b.label &&
+    (a.tabId ?? '') === (b.tabId ?? '') &&
+    (a.path ?? '') === (b.path ?? '') &&
+    (a.absolutePath ?? '') === (b.absolutePath ?? '') &&
+    (a.url ?? '') === (b.url ?? '') &&
+    (a.title ?? '') === (b.title ?? '')
   );
 }
 
@@ -737,6 +791,8 @@ export function ProjectView({
     tabs: [],
     active: null,
   });
+  const [activeWorkspaceContext, setActiveWorkspaceContext] =
+    useState<WorkspaceContextItem | null>(null);
   const tabsLoadedRef = useRef(false);
   const tabsHydratedFromSavedStateRef = useRef(false);
   const hasAppliedInitialPrimaryOpenRef = useRef(false);
@@ -1136,15 +1192,53 @@ export function ProjectView({
     };
   }, [project.id]);
 
+  // Debounce the canonical (daemon + SQLite) tab-state write. The embedded
+  // browser fans out url/title/favicon updates in bursts on a single page load
+  // (did-navigate, did-navigate-in-page, page-title-updated, favicon), and each
+  // used to be a localStorage write + HTTP PUT + SQLite UPDATE + re-render.
+  // We keep React state and the local cache IMMEDIATE (so the UI and a reload
+  // are never stale) and coalesce only the daemon PUT.
+  const tabsDaemonSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDaemonTabsRef = useRef<OpenTabsState | null>(null);
+  const flushTabsDaemonSave = useCallback(() => {
+    if (tabsDaemonSaveTimerRef.current != null) {
+      clearTimeout(tabsDaemonSaveTimerRef.current);
+      tabsDaemonSaveTimerRef.current = null;
+    }
+    const pending = pendingDaemonTabsRef.current;
+    pendingDaemonTabsRef.current = null;
+    if (pending) void persistTabsToDaemonNow(project.id, pending);
+  }, [project.id]);
+
   const persistTabsState = useCallback(
     (next: OpenTabsState) => {
       setOpenTabsState(next);
-      if (tabsLoadedRef.current) {
-        void saveTabs(project.id, next);
+      if (!tabsLoadedRef.current) return;
+      // Immediate, cheap, synchronous — keeps the cache canonical for reload.
+      const stamped = cacheTabsLocally(project.id, next);
+      pendingDaemonTabsRef.current = stamped;
+      if (tabsDaemonSaveTimerRef.current != null) {
+        clearTimeout(tabsDaemonSaveTimerRef.current);
       }
+      tabsDaemonSaveTimerRef.current = setTimeout(() => {
+        tabsDaemonSaveTimerRef.current = null;
+        const pending = pendingDaemonTabsRef.current;
+        pendingDaemonTabsRef.current = null;
+        if (pending) void persistTabsToDaemonNow(project.id, pending);
+      }, TAB_PERSIST_DEBOUNCE_MS);
     },
     [project.id],
   );
+
+  // Flush any pending tab write when the project changes or the view unmounts,
+  // so a fast project switch / close doesn't leave the daemon a debounce behind.
+  useEffect(() => flushTabsDaemonSave, [flushTabsDaemonSave]);
+
+  const handleActiveWorkspaceContextChange = useCallback((next: WorkspaceContextItem | null) => {
+    setActiveWorkspaceContext((current) =>
+      workspaceContextItemEqual(current, next) ? current : next,
+    );
+  }, []);
 
   const refreshProjectFiles = useCallback(async (): Promise<ProjectFile[]> => {
     const next = await fetchProjectFiles(project.id);
@@ -3067,7 +3161,10 @@ export function ProjectView({
         }
         const systemPrompt = await composedSystemPrompt(runSessionMode);
         const apiHistory = await historyWithApiAttachmentContext(
-          historyWithCommentAttachmentContext(nextHistory, userMsg.id),
+          historyWithCommentAttachmentContext(
+            historyWithWorkspaceContext(nextHistory, userMsg.id, meta?.context),
+            userMsg.id,
+          ),
           userMsg.id,
           project.id,
           projectFiles,
@@ -4976,6 +5073,7 @@ export function ProjectView({
               onProjectMetadataChange={(metadata) => {
                 onProjectChange({ ...project, metadata });
               }}
+              activeWorkspaceContext={activeWorkspaceContext}
               currentSkillId={project.skillId}
               onProjectSkillChange={(skillId) => {
                 onProjectChange({ ...project, skillId });
@@ -5058,6 +5156,7 @@ export function ProjectView({
           onNewConversation={handleNewConversation}
           activeConversationChat={activeConversationChatState}
           onCreateSideChat={handleCreateSideChat}
+          onActiveContextChange={handleActiveWorkspaceContextChange}
         />
       </div>
       {projectActionsToast ? (
@@ -5501,7 +5600,7 @@ export function finalizeActiveAssistantMessagesOnStop(
 
 type BufferedTextUpdates = ReturnType<typeof createBufferedTextUpdates>;
 
-function createBufferedTextUpdates({
+export function createBufferedTextUpdates({
   updateMessage,
   persistSoon,
   flushAndPersistNow,

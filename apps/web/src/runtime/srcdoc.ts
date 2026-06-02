@@ -874,6 +874,7 @@ function injectSelectionBridge(
   var hoveredId = null;
   var drawing = false;
   var stroke = [];
+  var strokeFrame = null;
   var postTargetsTimer = null;
   // overrides[elementId] = { selector: '[data-od-id="x"]', props: { color: '#fff', ... } }
   var overrides = Object.create(null);
@@ -1253,6 +1254,17 @@ function meaningfulDomFallbackTarget(el) {
   function postStroke(type){
     window.parent.postMessage({ type: type, points: stroke.slice() }, '*');
   }
+  // Coalesce live stroke updates to one post per frame. The stroke array still
+  // grows synchronously on every pointermove, but the host (which re-renders
+  // the comment overlay on each od:pod-stroke) only sees ~60 updates/sec
+  // instead of one per raw pointer event.
+  function schedulePostStroke(){
+    if (strokeFrame !== null) return;
+    strokeFrame = requestAnimationFrame(function(){
+      strokeFrame = null;
+      postStroke('od:pod-stroke');
+    });
+  }
   function canUseDomFallback(){
     return commentEnabled && !inspectEnabled;
   }
@@ -1524,11 +1536,12 @@ function meaningfulDomFallbackTarget(el) {
     stroke.push(point);
     ev.preventDefault();
     ev.stopPropagation();
-    postStroke('od:pod-stroke');
+    schedulePostStroke();
   }, true);
   function finishStroke(ev){
     if (!drawing || mode !== 'pod') return;
     drawing = false;
+    if (strokeFrame !== null) { cancelAnimationFrame(strokeFrame); strokeFrame = null; }
     if (ev) {
       ev.preventDefault();
       ev.stopPropagation();
@@ -1544,7 +1557,12 @@ function meaningfulDomFallbackTarget(el) {
     schedulePostPreviewScroll();
   }, true);
   var mo = new MutationObserver(schedulePostTargets);
-  mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  // childList only — NOT attributes/characterData. Re-walking every annotated
+  // target on every attribute/text mutation made an animated artifact (inline
+  // style/text changes per frame) churn schedulePostTargets continuously while
+  // in comment/inspect mode. Structural changes (childList) still re-walk, and
+  // scroll/resize already re-post geometry for layout shifts.
+  mo.observe(document.documentElement, { subtree: true, childList: true });
   // Reflect the host-requested initial modes on the documentElement so
   // the cursor/hover styles match what the bridge picks up on click.
   if (commentEnabled) document.documentElement.toggleAttribute('data-od-comment-mode', true);

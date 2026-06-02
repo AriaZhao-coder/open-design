@@ -419,6 +419,34 @@ describe('FileWorkspace upload input', () => {
 });
 
 describe('FileWorkspace launcher tab creation', () => {
+  it('reports the active Design Files tab as workspace context', async () => {
+    const onActiveContextChange = vi.fn();
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        resolvedDir="/tmp/open-design/project-1"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: [], active: null }}
+        onTabsStateChange={vi.fn()}
+        onActiveContextChange={onActiveContextChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onActiveContextChange).toHaveBeenLastCalledWith({
+        id: 'workspace:design-files',
+        kind: 'design-files',
+        label: 'Design Files',
+        tabId: '__design_files__',
+        absolutePath: '/tmp/open-design/project-1',
+      });
+    });
+  });
+
   it('appends a new terminal to the latest tab list after parent tabs change', async () => {
     mockedFetchProjectFileText.mockResolvedValue('');
     vi.stubGlobal(

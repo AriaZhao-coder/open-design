@@ -936,7 +936,7 @@ export const th: Dict = {
   'workspace.newTerminal': 'New Terminal',
   'workspace.newTerminalDescription': 'Open a shell in the project directory in a new tab',
   'workspace.newBrowser': 'New Browser',
-  'workspace.newBrowserDescription': 'Open a built-in browser tab for reference sites and browser-harness tasks',
+  'workspace.newBrowserDescription': 'Open a built-in browser tab for reference sites and design research',
   'workspace.terminalStarting': 'กำลังเริ่มเทอร์มินัล…',
   'workspace.terminalStartingDescription': 'กำลังเตรียมเชลล์ของโปรเจกต์ โดยปกติใช้เวลาไม่กี่วินาที',
   'workspace.terminalSessionEnded': 'Session ended',

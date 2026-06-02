@@ -107,7 +107,10 @@ const EMPTY_URL = 'about:blank';
 const DESIGN_BROWSER_PARTITION = 'persist:open-design-design-browser';
 const HISTORY_LIMIT = 80;
 const HISTORY_SUGGESTION_LIMIT = 20;
-const warmedOrigins = new Set<string>();
+// Cap the resource-hint (`dns-prefetch`/`preconnect`) links we leave in <head>.
+// Hovering/typing origins used to accumulate them and their Set entries forever.
+const WARMED_ORIGIN_LIMIT = 32;
+const warmedOrigins = new Map<string, HTMLLinkElement[]>();
 
 function browserHomeNavigationEntry(): BrowserNavigationEntry {
   return { title: 'Reference Board', url: EMPTY_URL };
@@ -1561,13 +1564,22 @@ function warmBrowserOrigin(url: string): void {
     return;
   }
   if (warmedOrigins.has(origin)) return;
-  warmedOrigins.add(origin);
+  const links: HTMLLinkElement[] = [];
   for (const rel of ['dns-prefetch', 'preconnect']) {
     const link = document.createElement('link');
     link.rel = rel;
     link.href = origin;
     if (rel === 'preconnect') link.crossOrigin = 'anonymous';
     document.head.appendChild(link);
+    links.push(link);
+  }
+  warmedOrigins.set(origin, links);
+  // FIFO-evict the oldest warmed origin once over the cap, removing its links.
+  while (warmedOrigins.size > WARMED_ORIGIN_LIMIT) {
+    const oldest = warmedOrigins.keys().next().value as string | undefined;
+    if (oldest == null) break;
+    warmedOrigins.get(oldest)?.forEach((link) => link.remove());
+    warmedOrigins.delete(oldest);
   }
 }
 

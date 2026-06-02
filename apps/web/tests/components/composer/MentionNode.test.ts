@@ -130,7 +130,8 @@ describe('MentionNode', () => {
     editor.getEditorState().read(() => {
       const node = $getNodeByKey(key);
       expect($isMentionNode(node)).toBe(true);
-      expect(node && node.getMode()).toBe('token');
+      // Narrow via the type guard so `getMode` (a TextNode method) is in scope.
+      expect($isMentionNode(node) ? node.getMode() : null).toBe('token');
     });
   });
 

@@ -1671,7 +1671,7 @@ export const en: Dict = {
   'workspace.newTerminal': 'New Terminal',
   'workspace.newTerminalDescription': 'Open a shell in the project directory in a new tab',
   'workspace.newBrowser': 'New Browser',
-  'workspace.newBrowserDescription': 'Open a built-in browser tab for reference sites and browser-harness tasks',
+  'workspace.newBrowserDescription': 'Open a built-in browser tab for reference sites and design research',
   'workspace.terminalStarting': 'Starting terminal…',
   'workspace.terminalStartingDescription': 'Preparing the project shell. This usually takes a few seconds.',
   'workspace.terminalSessionEnded': 'Session ended',

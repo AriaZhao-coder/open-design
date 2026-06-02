@@ -19,6 +19,15 @@ interface Props {
   projectId: string;
   /** Close the owning workspace tab (the close button / no-restart paths). */
   onClose: () => void;
+  /**
+   * Report the live PTY session id to the host whenever it changes. The tab id
+   * stays constant but Restart rebinds the surface to a fresh session, so the
+   * host can't derive the live id from the tab alone — it needs this to kill
+   * the right PTY on an explicit Close. The PTY now OUTLIVES unmount (tab
+   * switches keep it running for cheap reattach via Last-Event-ID), so an
+   * explicit Close is the only place it gets killed.
+   */
+  onSessionIdChange?: (terminalId: string, sessionId: string) => void;
 }
 
 type Phase = 'connecting' | 'live' | 'reconnecting' | 'ended' | 'unavailable';
@@ -109,7 +118,11 @@ function subscribeToAppearanceChanges(onChange: () => void): () => void {
         : window.setTimeout(onChange, 0);
   };
   const observer = new MutationObserver(schedule);
-  observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+  // Watch only `data-theme` — the terminal palette is driven by that attribute
+  // (plus the prefers-color-scheme media query below), never by the host root's
+  // inline style. Observing `style` would re-run a full getComputedStyle theme
+  // recompute on every unrelated inline-style write to <html>.
+  observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 
   if (media && typeof media.addEventListener === 'function') {
     media.addEventListener('change', schedule);
@@ -153,7 +166,7 @@ function subscribeToAppearanceChanges(onChange: () => void): () => void {
  *   with no auto-retry, or a Restart could not spawn a fresh PTY. Both `ended`
  *   and `unavailable` offer Restart (spawn a new PTY in place) and Close.
  */
-export function TerminalViewer({ terminalId, projectId, onClose }: Props) {
+export function TerminalViewer({ terminalId, projectId, onClose, onSessionIdChange }: Props) {
   const t = useT();
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -173,6 +186,12 @@ export function TerminalViewer({ terminalId, projectId, onClose }: Props) {
   useEffect(() => {
     setSessionId(terminalId);
   }, [terminalId]);
+
+  // Surface the live session id to the host so an explicit Close kills the
+  // correct PTY even after a Restart rebound this surface to a new session.
+  useEffect(() => {
+    onSessionIdChange?.(terminalId, sessionId);
+  }, [terminalId, sessionId, onSessionIdChange]);
 
   const applyFit = useCallback(() => {
     const term = termRef.current;
@@ -239,9 +258,24 @@ export function TerminalViewer({ terminalId, projectId, onClose }: Props) {
       // Initial fit, then sync the PTY to the measured geometry.
       applyFit();
 
-      // Keystrokes / pasted text → PTY stdin.
-      dataSub = xterm.onData((data: string) => {
+      // Keystrokes / pasted text → PTY stdin. Coalesce within a microtask so a
+      // multi-KB paste (or a fast key burst) flushes as ONE POST instead of
+      // fragmenting into a request per chunk.
+      let stdinBuffer = '';
+      let stdinScheduled = false;
+      const flushStdin = () => {
+        stdinScheduled = false;
+        if (!stdinBuffer) return;
+        const data = stdinBuffer;
+        stdinBuffer = '';
         void sendTerminalStdin(projectId, sessionId, data);
+      };
+      dataSub = xterm.onData((data: string) => {
+        stdinBuffer += data;
+        if (!stdinScheduled) {
+          stdinScheduled = true;
+          queueMicrotask(flushStdin);
+        }
       });
 
       // Reflow on container resize (tab switches, window resize, split changes).
@@ -304,9 +338,12 @@ export function TerminalViewer({ terminalId, projectId, onClose }: Props) {
       termRef.current = null;
       fitRef.current = null;
       lastSizeRef.current = null;
-      // Best-effort: terminate the PTY so it doesn't outlive the tab. keepalive
-      // lets the kill survive a page-unload teardown.
-      void killTerminal(projectId, sessionId, { keepalive: true });
+      // Deliberately DO NOT kill the PTY here. Unmount happens on every tab
+      // switch, and the daemon owns the session with Last-Event-ID replay, so
+      // keeping it alive lets a tab switch (or page reload) reattach cheaply
+      // instead of SIGTERM-ing a running `yarn build` and losing scrollback.
+      // The PTY is killed only on an explicit Close (FileWorkspace.closeTab)
+      // or when the daemon shuts down.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, sessionId]);
@@ -319,6 +356,11 @@ export function TerminalViewer({ terminalId, projectId, onClose }: Props) {
   // Spawn a fresh PTY and rebind this surface to it (the tab id is unchanged).
   const restart = useCallback(async () => {
     setPhase('connecting');
+    // Abandon the previous PTY before rebinding. Restart is only reachable from
+    // the ended/unavailable states (old session already gone), so this is
+    // usually a no-op — but since unmount no longer kills, it's the guard that
+    // stops a stale session from lingering on the daemon if that ever changes.
+    void killTerminal(projectId, sessionId, { keepalive: true });
     const next = await createTerminal(projectId);
     if (next?.id) {
       lastSizeRef.current = null;
@@ -326,7 +368,7 @@ export function TerminalViewer({ terminalId, projectId, onClose }: Props) {
     } else {
       setPhase('unavailable');
     }
-  }, [projectId]);
+  }, [projectId, sessionId]);
 
   const stopped = phase === 'ended' || phase === 'unavailable';
   const connecting = phase === 'connecting';

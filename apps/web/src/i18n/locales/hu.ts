@@ -989,7 +989,7 @@ export const hu: Dict = {
   'workspace.newTerminal': 'New Terminal',
   'workspace.newTerminalDescription': 'Open a shell in the project directory in a new tab',
   'workspace.newBrowser': 'New Browser',
-  'workspace.newBrowserDescription': 'Open a built-in browser tab for reference sites and browser-harness tasks',
+  'workspace.newBrowserDescription': 'Open a built-in browser tab for reference sites and design research',
   'workspace.terminalStarting': 'Terminál indítása…',
   'workspace.terminalStartingDescription': 'A projekt shell előkészítése. Ez általában csak néhány másodperc.',
   'workspace.terminalSessionEnded': 'Session ended',

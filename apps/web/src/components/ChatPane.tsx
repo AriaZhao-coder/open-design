@@ -1,6 +1,8 @@
 import {
   Fragment,
+  memo,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
@@ -14,7 +16,7 @@ import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectRawUrl } from '../providers/registry';
 import type { TodoItem } from '../runtime/todos';
-import type { AppliedPluginSnapshot, ChatSessionMode } from '@open-design/contracts';
+import type { AppliedPluginSnapshot, ChatSessionMode, WorkspaceContextItem } from '@open-design/contracts';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
 import {
   DESIGN_SYSTEM_WORKSPACE_DISPLAY_DESCRIPTION,
@@ -325,6 +327,7 @@ interface Props {
   onOpenPetSettings?: () => void;
   projectMetadata?: ProjectMetadata;
   onProjectMetadataChange?: (metadata: ProjectMetadata) => void;
+  activeWorkspaceContext?: WorkspaceContextItem | null;
   currentSkillId?: string | null;
   onProjectSkillChange?: (skillId: string | null) => void;
   researchAvailable?: boolean;
@@ -421,6 +424,7 @@ export function ChatPane({
   onOpenPetSettings,
   projectMetadata,
   onProjectMetadataChange,
+  activeWorkspaceContext,
   currentSkillId = null,
   onProjectSkillChange,
   researchAvailable,
@@ -448,6 +452,22 @@ export function ChatPane({
   // shouldn't be yanked back the moment the next chunk streams in.
   const pinnedToBottomRef = useRef(true);
   const scrolledToFormRef = useRef<Set<string>>(new Set());
+  // AssistantMessage's four interaction callbacks are re-created per render and
+  // excluded from its memo comparison (so streaming doesn't re-render every
+  // message). Route them through this ref so a memoized message still calls the
+  // LATEST handler. See areAssistantMessagePropsEqual in AssistantMessage.tsx.
+  const assistantCallbacksRef = useRef({
+    onSubmitForm,
+    onContinueRemainingTasks,
+    onAssistantFeedback,
+    onForkFromMessage,
+  });
+  assistantCallbacksRef.current = {
+    onSubmitForm,
+    onContinueRemainingTasks,
+    onAssistantFeedback,
+    onForkFromMessage,
+  };
   const [tab, setTab] = useState<Tab>('chat');
   const [showConvList, setShowConvList] = useState(false);
   const [scrolledFromBottom, setScrolledFromBottom] = useState(false);
@@ -457,7 +477,14 @@ export function ChatPane({
   // but the same snapshot stays hidden across renders / streaming ticks.
   const [dismissedPinnedTodoKey, setDismissedPinnedTodoKey] = useState<string | null>(null);
   const [editingQueuedSendId, setEditingQueuedSendId] = useState<string | null>(null);
-  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
+  // Reverse scan (no array copy) + memo so this and the maps below don't
+  // recompute on every non-`messages` render (scroll, hover, toggles).
+  const lastAssistantId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === 'assistant') return messages[i]!.id;
+    }
+    return undefined;
+  }, [messages]);
   const hasActiveRunMessage = messages.some(
     (m) => m.role === 'assistant' && isActiveRunStatus(m.runStatus),
   );
@@ -507,11 +534,14 @@ export function ChatPane({
   // Only the first user message gets the active-plugin chip — the
   // plugin is project-scoped so re-stamping it on every reply would be
   // noise. Subsequent messages still run under the same snapshot.
-  const firstUserMessageId = messages.find((m) => m.role === 'user')?.id;
+  const firstUserMessageId = useMemo(
+    () => messages.find((m) => m.role === 'user')?.id,
+    [messages],
+  );
   // Map each assistant message id to the user message that follows it
   // (if any) so QuestionFormView can render its locked "answered" state
   // with the user's picks.
-  const nextUserContentByAssistantId = (() => {
+  const nextUserContentByAssistantId = useMemo(() => {
     const map = new Map<string, string>();
     for (let i = 0; i < messages.length - 1; i++) {
       const m = messages[i]!;
@@ -521,7 +551,7 @@ export function ChatPane({
       }
     }
     return map;
-  })();
+  }, [messages]);
 
   useEffect(() => {
     didInitialScrollRef.current = false;
@@ -809,10 +839,13 @@ export function ChatPane({
             followLatestIfPinned();
           })
         : null;
+    // childList + subtree only — NOT characterData. Auto-follow during
+    // streaming is driven by the ResizeObserver on each message child (text
+    // growth changes height), so observing per-character text mutations would
+    // re-run the full sync sweep on every streamed frame for no extra benefit.
     mutationObserver?.observe(el, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
     // PinnedTodoSlot and QueuedSendStrip live outside the chat-log subtree
     // (they are siblings of .chat-log-wrap inside .pane). The
@@ -1206,20 +1239,23 @@ export function ChatPane({
                         onSubmitForm={(text) => {
                           pinnedToBottomRef.current = true;
                           scrolledToFormRef.current = new Set();
-                          onSubmitForm?.(text);
+                          assistantCallbacksRef.current.onSubmitForm?.(text);
                         }}
                         onContinueRemainingTasks={
                           m.id === lastAssistantId && onContinueRemainingTasks
-                            ? (todos) => onContinueRemainingTasks(m, todos)
+                            ? (todos) =>
+                                assistantCallbacksRef.current.onContinueRemainingTasks?.(m, todos)
                             : undefined
                         }
                         onForkFromMessage={
-                          onForkFromMessage ? () => onForkFromMessage(m) : undefined
+                          onForkFromMessage
+                            ? () => assistantCallbacksRef.current.onForkFromMessage?.(m)
+                            : undefined
                         }
                         forking={forkingMessageId === m.id}
                         onFeedback={
                           onAssistantFeedback
-                            ? (rating) => onAssistantFeedback(m, rating)
+                            ? (rating) => assistantCallbacksRef.current.onAssistantFeedback?.(m, rating)
                             : undefined
                         }
                       />
@@ -1377,6 +1413,7 @@ export function ChatPane({
             researchAvailable={researchAvailable}
             projectMetadata={projectMetadata}
             onProjectMetadataChange={onProjectMetadataChange}
+            activeWorkspaceContext={activeWorkspaceContext}
             byokApiProtocol={byokApiProtocol}
             byokImageModel={byokImageModel}
             onChangeByokImageModel={onChangeByokImageModel}
@@ -1670,6 +1707,7 @@ function QueuedSendMetaChips({ item }: { item: QueuedSendItem }) {
   const skills = ctx?.skillIds?.length ?? 0;
   const mcp = ctx?.mcpServerIds?.length ?? 0;
   const connectors = ctx?.connectorIds?.length ?? 0;
+  const workspace = ctx?.workspaceItems?.length ?? 0;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const chips: Array<{ key: string; label: string }> = [];
   if (files > 0) chips.push({ key: 'files', label: plural(files, 'file') });
@@ -1678,6 +1716,7 @@ function QueuedSendMetaChips({ item }: { item: QueuedSendItem }) {
   if (skills > 0) chips.push({ key: 'skills', label: plural(skills, 'skill') });
   if (mcp > 0) chips.push({ key: 'mcp', label: `${mcp} MCP` });
   if (connectors > 0) chips.push({ key: 'connectors', label: plural(connectors, 'connector') });
+  if (workspace > 0) chips.push({ key: 'workspace', label: plural(workspace, 'workspace context') });
   if (chips.length === 0) return null;
   return (
     <div className="chat-queued-send-chips">
@@ -1950,7 +1989,11 @@ function normalizeConversationRename(
   return next === current ? null : next;
 }
 
-function UserMessage({
+// Memoized (hoisted impl referenced below): a static user message has stable
+// props, so it skips re-render while a later turn streams.
+const UserMessage = memo(UserMessageImpl);
+
+function UserMessageImpl({
   message,
   projectId,
   projectFileNames,
@@ -2015,7 +2058,7 @@ function UserMessage({
       ) : null}
       {attachments.length > 0 ? (
         <div className="user-attachments">
-          {attachments.map((a) => {
+          {attachments.map((a, index) => {
             const baseName = a.path.split('/').pop() || a.path;
             const openable =
               !!onRequestOpenFile &&
@@ -2032,6 +2075,9 @@ function UserMessage({
                 disabled={!openable}
                 title={openable ? t('chat.openFile', { name: baseName }) : a.path}
               >
+                <span className="staged-order" aria-label={`Attachment ${index + 1}`}>
+                  {index + 1}
+                </span>
                 {a.kind === 'image' && projectId ? (
                   <img src={projectRawUrl(projectId, a.path)} alt={a.name} />
                 ) : (

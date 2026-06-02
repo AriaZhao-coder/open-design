@@ -1103,6 +1103,18 @@ export function resolveSafeProjectAttachments(cwd, attachments, opts = {}) {
   return out;
 }
 
+export function formatProjectAttachmentHint(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return '';
+  return [
+    '',
+    '',
+    'Attached project files in user-visible order:',
+    ...attachments.map((p, index) => `${index + 1}. \`${p}\``),
+    '',
+    'When the user says "first attachment", "second file", or similar, map those references to the numbered list above.',
+  ].join('\n');
+}
+
 export function resolveSafePromptImagePaths(imagePaths, opts = {}) {
   if (!Array.isArray(imagePaths) || imagePaths.length === 0) {
     return { safeImages: [], oversizedImages: [], failedImages: [] };
@@ -1738,6 +1750,52 @@ export function createAgentRuntimeToolPrompt(
   ].join('\n');
 }
 
+const WORKSPACE_CONTEXT_KINDS = new Set([
+  'design-files',
+  'design-system',
+  'file',
+  'folder',
+  'browser',
+  'terminal',
+  'side-chat',
+  'live-artifact',
+]);
+
+function normalizeWorkspaceContextItems(items) {
+  if (!Array.isArray(items)) return [];
+  const out = [];
+  const seen = new Set();
+  const cleanString = (value, max = 500) => {
+    if (typeof value !== 'string') return '';
+    return value.trim().slice(0, max);
+  };
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const kind = cleanString(record.kind, 64);
+    if (!WORKSPACE_CONTEXT_KINDS.has(kind)) continue;
+    const id = cleanString(record.id, 240);
+    const label = cleanString(record.label, 240);
+    if (!id || !label) continue;
+    const dedupeKey = `${kind}:${id}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const normalized: Record<string, string> = { id, kind, label };
+    const tabId = cleanString(record.tabId, 240);
+    const pathValue = cleanString(record.path, 500);
+    const absolutePath = cleanString(record.absolutePath, 1000);
+    const url = cleanString(record.url, 1000);
+    const title = cleanString(record.title, 500);
+    if (tabId) normalized.tabId = tabId;
+    if (pathValue) normalized.path = pathValue;
+    if (absolutePath) normalized.absolutePath = absolutePath;
+    if (url) normalized.url = url;
+    if (title) normalized.title = title;
+    out.push(normalized);
+  }
+  return out;
+}
+
 function normalizeRunContextSelection(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const stringList = (items) => {
@@ -1758,14 +1816,17 @@ function normalizeRunContextSelection(value) {
     pluginIds: stringList(value.pluginIds),
     mcpServerIds: stringList(value.mcpServerIds),
     connectorIds: stringList(value.connectorIds),
+    workspaceItems: normalizeWorkspaceContextItems(value.workspaceItems),
   };
 }
 
 function mergeRunContextSelections(...contexts) {
-  const merged = { skillIds: [], pluginIds: [], mcpServerIds: [], connectorIds: [] };
+  const merged = { skillIds: [], pluginIds: [], mcpServerIds: [], connectorIds: [], workspaceItems: [] };
+  const listKeys = ['skillIds', 'pluginIds', 'mcpServerIds', 'connectorIds'];
+  const workspaceSeen = new Set();
   for (const context of contexts) {
     const normalized = normalizeRunContextSelection(context);
-    for (const key of Object.keys(merged)) {
+    for (const key of listKeys) {
       const seen = new Set(merged[key]);
       for (const id of normalized[key] ?? []) {
         if (!seen.has(id)) {
@@ -1773,6 +1834,12 @@ function mergeRunContextSelections(...contexts) {
           merged[key].push(id);
         }
       }
+    }
+    for (const item of normalized.workspaceItems ?? []) {
+      const key = `${item.kind}:${item.id}`;
+      if (workspaceSeen.has(key)) continue;
+      workspaceSeen.add(key);
+      merged.workspaceItems.push(item);
     }
   }
   return Object.fromEntries(
@@ -1824,9 +1891,32 @@ function formatContextRefList(ids, refs, titleKey = 'title') {
     .join('\n');
 }
 
+function formatWorkspaceContextList(items) {
+  if (!Array.isArray(items)) return '';
+  return items
+    .map((item, index) => {
+      const details = [
+        item.path ? `path: \`${item.path}\`` : null,
+        item.absolutePath ? `absolute: \`${item.absolutePath}\`` : null,
+        item.url ? `url: ${item.url}` : null,
+        item.title ? `title: ${item.title}` : null,
+        item.tabId ? `tab: \`${item.tabId}\`` : null,
+      ].filter(Boolean).join(' | ');
+      return `${index + 1}. ${item.kind}: ${item.label} (\`${item.id}\`)${details ? ` — ${details}` : ''}`;
+    })
+    .join('\n');
+}
+
 function renderRunContextPrompt(selection, metadata) {
   const context = mergeRunContextSelections(projectMetadataContextSelection(metadata), selection);
   const lines = [];
+  if (Array.isArray(context.workspaceItems) && context.workspaceItems.length > 0) {
+    lines.push('### Active workspace context');
+    lines.push(
+      'The user did not manually choose this context; Open Design selected the currently focused workspace tab. Use it as the default target for phrases like "this", "current", "the browser", "the terminal", or "that file" unless the user says otherwise. Use project-relative paths exactly when reading or editing project files.',
+    );
+    lines.push(formatWorkspaceContextList(context.workspaceItems));
+  }
   if (Array.isArray(context.pluginIds) && context.pluginIds.length > 0) {
     lines.push('### Selected plugins');
     lines.push(
@@ -6041,15 +6131,57 @@ export async function startServer({
     if (!getProject(db, req.params.id)) {
       return res.status(404).json({ error: 'project not found' });
     }
-    const { title } = req.body || {};
+    const { title, seedFromConversationId, forkAfterMessageId } = req.body || {};
     const now = Date.now();
+    const hasExplicitSessionMode = Boolean(
+      req.body && Object.prototype.hasOwnProperty.call(req.body, 'sessionMode'),
+    );
+    const requestedForkMessageId =
+      typeof forkAfterMessageId === 'string' && forkAfterMessageId
+        ? forkAfterMessageId
+        : null;
+    const sourceConversation =
+      typeof seedFromConversationId === 'string' && seedFromConversationId
+        ? getConversation(db, seedFromConversationId)
+        : null;
+    let seedMessages = [];
+    if (sourceConversation && sourceConversation.projectId === req.params.id) {
+      seedMessages = listMessages(db, seedFromConversationId);
+      if (requestedForkMessageId) {
+        const forkIndex = seedMessages.findIndex((message) => message.id === requestedForkMessageId);
+        if (forkIndex < 0) {
+          return res.status(404).json({ error: 'fork message not found' });
+        }
+        seedMessages = seedMessages.slice(0, forkIndex + 1);
+      }
+    } else if (requestedForkMessageId) {
+      return res.status(404).json({ error: 'fork source conversation not found' });
+    }
+    const sessionMode =
+      hasExplicitSessionMode
+        ? normalizeConversationSessionMode(req.body.sessionMode)
+        : sourceConversation && sourceConversation.projectId === req.params.id
+          ? normalizeConversationSessionMode(sourceConversation.sessionMode)
+          : 'design';
     const conv = insertConversation(db, {
       id: randomId(),
       projectId: req.params.id,
       title: typeof title === 'string' ? title.trim() || null : null,
+      sessionMode,
       createdAt: now,
       updatedAt: now,
     });
+    if (conv && seedMessages.length > 0) {
+      for (const m of seedMessages) {
+        upsertMessage(db, conv.id, {
+          ...m,
+          id: randomId(),
+          runId: undefined,
+          runStatus: undefined,
+          lastRunEventId: undefined,
+        });
+      }
+    }
     res.json({ conversation: conv });
   });
 
@@ -11007,9 +11139,7 @@ export async function startServer({
           linkedDirs.map((d) => `- \`${d}\``).join('\n')
         }`
       : '';
-    const attachmentHint = safeAttachments.length
-      ? `\n\nAttached project files: ${safeAttachments.map((p) => `\`${p}\``).join(', ')}`
-      : '';
+    const attachmentHint = formatProjectAttachmentHint(safeAttachments);
     // Plan §3.A3 / spec §9: thread plugin context onto every tool token
     // so the connector execute route can re-validate the §5.3
     // capability gate without re-reading the SQLite snapshot row.

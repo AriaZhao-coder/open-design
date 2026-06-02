@@ -6,6 +6,7 @@ import { agentModelDisplayName } from '../../utils/agentLabels';
 import { randomUUID } from '../../utils/uuid';
 import { effectiveAgentModelChoice } from '../agentModelSelection';
 import {
+  createBufferedTextUpdates,
   finalizeActiveAssistantMessagesOnStop,
   resolveRetryTarget,
   resolveSucceededRunStatus,
@@ -90,6 +91,10 @@ export function useConversationChat(
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelRef = useRef<AbortController | null>(null);
+  // Coalesces streamed deltas into ~one React update per animation frame
+  // (same primitive the primary chat loop uses) so a side chat doesn't rebuild
+  // the whole messages array on every SSE token.
+  const textBufferRef = useRef<ReturnType<typeof createBufferedTextUpdates> | null>(null);
 
   // Load the conversation's persisted messages on mount / conversation switch.
   useEffect(() => {
@@ -115,6 +120,8 @@ export function useConversationChat(
       abortRef.current?.abort();
       abortRef.current = null;
       cancelRef.current = null;
+      textBufferRef.current?.cancel();
+      textBufferRef.current = null;
     };
   }, []);
 
@@ -204,33 +211,35 @@ export function useConversationChat(
       abortRef.current = controller;
       cancelRef.current = cancelController;
 
+      // Frame-batch this run's text deltas. flush() applies any pending content
+      // before cancel() tears down, so a terminal status that races onDone
+      // can't drop the tail of the answer.
+      textBufferRef.current?.cancel();
+      const textBuffer = createBufferedTextUpdates({
+        updateMessage: (updater) => updateAssistant(assistantId, updater),
+        // Side chat persists at done/error (+ onRunCreated), not mid-stream.
+        persistSoon: () => {},
+      });
+      textBufferRef.current = textBuffer;
+
       const clearRefs = () => {
         if (abortRef.current === controller) abortRef.current = null;
         if (cancelRef.current === cancelController) cancelRef.current = null;
+        textBufferRef.current?.flush();
+        textBufferRef.current?.cancel();
+        textBufferRef.current = null;
         setStreaming(false);
       };
 
       const handlers = {
         onDelta: (delta: string) => {
-          updateAssistant(assistantId, (prev) => ({
-            ...prev,
-            content: (prev.content ?? '') + delta,
-          }));
+          textBuffer.appendContent(delta);
         },
         onAgentEvent: (ev: AgentEvent) => {
-          if (ev.kind === 'text') {
-            updateAssistant(assistantId, (prev) => ({
-              ...prev,
-              content: (prev.content ?? '') + ev.text,
-            }));
-            return;
-          }
-          updateAssistant(assistantId, (prev) => ({
-            ...prev,
-            events: [...(prev.events ?? []), ev],
-          }));
+          textBuffer.appendEvent(ev);
         },
         onDone: () => {
+          textBuffer.flush();
           const endedAt = Date.now();
           setMessages((curr) => {
             const next = curr.map((m) =>
@@ -245,6 +254,7 @@ export function useConversationChat(
           clearRefs();
         },
         onError: (err: Error) => {
+          textBuffer.flush();
           const endedAt = Date.now();
           const code = (err as Error & { code?: string }).code;
           setError(err.message);
@@ -335,6 +345,9 @@ export function useConversationChat(
     cancelRef.current = null;
     abortRef.current?.abort();
     abortRef.current = null;
+    textBufferRef.current?.flush();
+    textBufferRef.current?.cancel();
+    textBufferRef.current = null;
     setStreaming(false);
     setMessages((curr) => {
       const { messages: next, finalized } = finalizeActiveAssistantMessagesOnStop(curr, stoppedAt);

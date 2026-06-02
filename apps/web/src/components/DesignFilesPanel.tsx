@@ -226,7 +226,6 @@ export function DesignFilesPanel({
   const [dropReadError, setDropReadError] = useState<string | null>(null);
   const dragDepthRef = useRef(0);
   const internalDragNamesRef = useRef<string[]>([]);
-  const [hover, setHover] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ name: string; top: number; left: number } | null>(null);
   // Folder rows get their own context menu (open / copy path / delete); `path`
   // is the folder's project-relative path.
@@ -325,6 +324,25 @@ export function DesignFilesPanel({
     }
     return map;
   }, [folders]);
+
+  // Recursive descendant count per folder path, in ONE pass over `files`.
+  // Each dir row previously ran `files.filter(f => f.name.startsWith(prefix))`,
+  // making rendering O(dirs × files); this makes it O(files) once + an O(1)
+  // lookup per row. Walking each entry's `/` boundaries and incrementing every
+  // ancestor prefix reproduces the old startsWith(`${folder}/`) count exactly.
+  const fileCountByFolder = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const f of files) {
+      const name = f.name;
+      let idx = name.indexOf('/');
+      while (idx !== -1) {
+        const folder = name.slice(0, idx);
+        counts.set(folder, (counts.get(folder) ?? 0) + 1);
+        idx = name.indexOf('/', idx + 1);
+      }
+    }
+    return counts;
+  }, [files]);
 
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const searchActive = normalizedSearchQuery.length > 0;
@@ -921,7 +939,6 @@ export function DesignFilesPanel({
 
   function renderFileRow(f: ProjectFile) {
     const active = preview === f.name;
-    const isHovered = hover === f.name;
     const renameState = renaming?.name === f.name ? renaming : null;
     return (
       <tr
@@ -940,8 +957,6 @@ export function DesignFilesPanel({
           internalDragNamesRef.current = [];
           setDragOverFolder(null);
         }}
-        onMouseEnter={() => setHover(f.name)}
-        onMouseLeave={() => setHover((c) => (c === f.name ? null : c))}
       >
         <td className="df-cell-check">
           <span
@@ -1056,7 +1071,7 @@ export function DesignFilesPanel({
           <span
             data-testid={`design-file-menu-${f.name}`}
             className="df-row-menu"
-            style={isHovered || active ? { opacity: 1 } : undefined}
+            style={active ? { opacity: 1 } : undefined}
             role="button"
             tabIndex={0}
             aria-label={t('designFiles.rowMenu')}
@@ -1081,18 +1096,14 @@ export function DesignFilesPanel({
 
   function renderDirRow(dir: DirectoryRow) {
     const fullPath = dir.path;
-    const prefix = `${fullPath}/`;
-    const count = files.filter((f) => f.name.startsWith(prefix)).length;
+    const count = fileCountByFolder.get(fullPath) ?? 0;
     const dragActive = dragOverFolder === fullPath;
     const folderMtime = folderMtimeByPath.get(fullPath);
-    const hoverKey = `dir:${fullPath}`;
-    const menuVisible = hover === hoverKey || folderMenuPos?.path === fullPath;
+    const menuVisible = folderMenuPos?.path === fullPath;
     return (
       <tr
         key={`dir:${fullPath}`}
         className={`df-file-row df-dir-row ${dragActive ? 'drag-over' : ''}`}
-        onMouseEnter={() => setHover(hoverKey)}
-        onMouseLeave={() => setHover((curr) => (curr === hoverKey ? null : curr))}
         onDragEnter={(e) => {
           if (!hasInternalFileDrag(e.dataTransfer)) return;
           e.preventDefault();

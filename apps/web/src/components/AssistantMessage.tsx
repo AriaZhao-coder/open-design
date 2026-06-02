@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ToolCard } from "./ToolCard";
 import { FileOpsSummary } from "./FileOpsSummary";
 import {
@@ -320,6 +320,50 @@ interface Props {
   hasDesignSystemContext?: boolean;
 }
 
+// Props compared by reference to decide whether a memoized AssistantMessage can
+// skip re-rendering. The four interaction callbacks (onSubmitForm,
+// onContinueRemainingTasks, onForkFromMessage, onFeedback) are DELIBERATELY
+// excluded: ChatPane re-creates them per render, but routes them through a ref
+// so their behavior is reference-stable — comparing them would defeat the memo
+// on every streamed frame. `isLast` is compared, which captures the only state
+// transition those callbacks' presence depends on. The remaining context props
+// (projectFiles, the Set props, handlers) come from ProjectView as stable
+// useState/useMemo/useCallback values, so reference comparison is correct and
+// cheap.
+const ASSISTANT_MESSAGE_COMPARED_PROPS: Array<keyof Props> = [
+  'message',
+  'streaming',
+  'projectId',
+  'projectKind',
+  'conversationId',
+  'projectFiles',
+  'projectFileNames',
+  'onRequestOpenFile',
+  'onRequestPluginFolderAgentAction',
+  'activePluginActionPaths',
+  'hiddenPluginActionPaths',
+  'isLast',
+  'errorCardOwnerId',
+  'nextUserContent',
+  'forking',
+  'suppressDirectionForms',
+  'hasDesignSystemContext',
+];
+
+function areAssistantMessagePropsEqual(prev: Props, next: Props): boolean {
+  for (const key of ASSISTANT_MESSAGE_COMPARED_PROPS) {
+    if (!Object.is(prev[key], next[key])) return false;
+  }
+  return true;
+}
+
+/**
+ * Memoized so a streamed frame only re-renders the ONE assistant message whose
+ * `message` object changed identity (the streaming turn), not all N messages in
+ * the conversation. See `areAssistantMessagePropsEqual` for the comparison.
+ */
+export const AssistantMessage = memo(AssistantMessageImpl, areAssistantMessagePropsEqual);
+
 /**
  * Renders an assistant message as an interleaved flow of:
  *   - prose blocks (consecutive `text` events merged)
@@ -329,7 +373,7 @@ interface Props {
  *     the individual tool cards. Mirrors the chat surface in screenshot 9.
  *   - status pills
  */
-export function AssistantMessage({
+function AssistantMessageImpl({
   message,
   streaming,
   projectId,
@@ -898,6 +942,7 @@ function AssistantForkButton({
       type="button"
       className="assistant-copy-button"
       disabled={disabled}
+      data-tooltip={label}
       onClick={onFork}
       aria-label={label}
       title={label}
@@ -935,6 +980,7 @@ function AssistantMarkdownCopyButton({ markdown }: { markdown: string }) {
       type="button"
       className="assistant-copy-button"
       data-copied={copied ? "true" : "false"}
+      data-tooltip={label}
       onClick={() => {
         void handleCopy();
       }}
@@ -1233,6 +1279,7 @@ function AssistantFeedback({
         type="button"
         className="assistant-feedback-button"
         data-selected={selected === "positive" ? "true" : "false"}
+        data-tooltip={t("assistant.feedbackPositive")}
         aria-pressed={selected === "positive"}
         aria-label={t("assistant.feedbackPositive")}
         title={t("assistant.feedbackPositive")}
@@ -1258,6 +1305,7 @@ function AssistantFeedback({
         type="button"
         className="assistant-feedback-button"
         data-selected={selected === "negative" ? "true" : "false"}
+        data-tooltip={t("assistant.feedbackNegative")}
         aria-pressed={selected === "negative"}
         aria-label={t("assistant.feedbackNegative")}
         title={t("assistant.feedbackNegative")}

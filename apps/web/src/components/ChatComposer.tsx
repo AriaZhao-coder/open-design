@@ -38,9 +38,10 @@ import type {
   PluginSourceKind,
   ResearchOptions,
   RunContextSelection,
+  WorkspaceContextItem,
 } from '@open-design/contracts';
 import { buildVisualAnnotationAttachment, commentTargetDisplayName } from '../comments';
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { SessionModeToggle } from './SessionModeToggle';
 import { PluginDetailsModal } from "./PluginDetailsModal";
 import { PluginsSection, type PluginsSectionHandle } from "./PluginsSection";
@@ -133,6 +134,7 @@ interface Props {
   researchAvailable?: boolean;
   projectMetadata?: ProjectMetadata;
   onProjectMetadataChange?: (metadata: ProjectMetadata) => void;
+  activeWorkspaceContext?: WorkspaceContextItem | null;
   // SenseAudio BYOK image-model picker shown above the textarea. Hidden
   // when the active chat protocol is anything other than 'senseaudio',
   // so the composer stays clean for every other BYOK tab. The state
@@ -221,6 +223,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       researchAvailable = false,
       projectMetadata,
       onProjectMetadataChange,
+      activeWorkspaceContext = null,
       byokApiProtocol,
       byokImageModel,
       onChangeByokImageModel,
@@ -256,6 +259,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [stagedSkills, setStagedSkills] = useState<SkillSummary[]>([]);
     const [stagedMcpServers, setStagedMcpServers] = useState<McpServerConfig[]>([]);
     const [stagedConnectors, setStagedConnectors] = useState<ConnectorDetail[]>([]);
+    const [dismissedWorkspaceContextId, setDismissedWorkspaceContextId] = useState<string | null>(null);
+    const activeWorkspaceContextId = activeWorkspaceContext?.id ?? null;
+    const previousWorkspaceContextIdRef = useRef<string | null>(activeWorkspaceContextId);
     const [dragActive, setDragActive] = useState(false);
     // Lexical owns the caret, so the mention/slash trigger state only carries
     // the typed query — no cursor offset.
@@ -307,6 +313,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
     const petEnabled = Boolean(onAdoptPet && onTogglePet);
     const linkedDirs = projectMetadata?.linkedDirs ?? [];
+    const visibleWorkspaceContext =
+      activeWorkspaceContext && activeWorkspaceContext.id !== dismissedWorkspaceContextId
+        ? activeWorkspaceContext
+        : null;
     // initialDraft is only honored on the first non-empty value the parent
     // hands us. After we seed once, the composer is fully under user control
     // — re-renders that pass the same prompt back must not reseed. If the
@@ -329,6 +339,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     useEffect(() => {
       saveComposerDraft(draftStorageKey, draft);
     }, [draftStorageKey, draft]);
+
+    useEffect(() => {
+      if (previousWorkspaceContextIdRef.current === activeWorkspaceContextId) return;
+      previousWorkspaceContextIdRef.current = activeWorkspaceContextId;
+      setDismissedWorkspaceContextId(null);
+    }, [activeWorkspaceContextId]);
 
     useEffect(() => {
       if (!toolsOpen) return;
@@ -704,11 +720,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       const pluginIds = activeAppliedPlugin ? [activeAppliedPlugin.pluginId] : [];
       const mcpServerIds = stagedMcpServers.map((s) => s.id);
       const connectorIds = stagedConnectors.map((c) => c.id);
+      const workspaceItems = visibleWorkspaceContext ? [visibleWorkspaceContext] : [];
       const context: RunContextSelection = {
         ...(skillIds.length > 0 ? { skillIds } : {}),
         ...(pluginIds.length > 0 ? { pluginIds } : {}),
         ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
         ...(connectorIds.length > 0 ? { connectorIds } : {}),
+        ...(workspaceItems.length > 0 ? { workspaceItems } : {}),
       };
       const meta: ChatSendMeta = {
         ...(skillIds.length > 0 ? { skillIds } : {}),
@@ -786,6 +804,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         id,
         connector?.name ?? '',
       ]));
+    }
+
+    function removeWorkspaceContext(id: string) {
+      setDismissedWorkspaceContextId(id);
     }
 
     async function ensureProject(): Promise<string | null> {
@@ -1030,6 +1052,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       stagedVisualComments,
       streaming,
       t,
+      visibleWorkspaceContext,
     ]);
 
     useEffect(() => {
@@ -1052,6 +1075,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       stagedVisualComments,
       streaming,
       streamingAnnotationSendPending,
+      visibleWorkspaceContext,
     ]);
 
     // Paste handler invoked by the editor's PastePlugin. `files` are the items
@@ -1481,11 +1505,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               }}
             />
           ) : null}
-          {stagedSkills.length > 0 || stagedMcpServers.length > 0 || stagedConnectors.length > 0 ? (
+          {visibleWorkspaceContext || stagedSkills.length > 0 || stagedMcpServers.length > 0 || stagedConnectors.length > 0 ? (
             <StagedRunContexts
+              workspaceItem={visibleWorkspaceContext}
               skills={stagedSkills}
               mcpServers={stagedMcpServers}
               connectors={stagedConnectors}
+              onRemoveWorkspace={removeWorkspaceContext}
               onRemoveSkill={removeStagedSkill}
               onRemoveMcp={removeStagedMcpServer}
               onRemoveConnector={removeStagedConnector}
@@ -2006,11 +2032,14 @@ function StagedAttachments({
   return (
     <>
       <div className="staged-row" data-testid="staged-attachments">
-        {attachments.map((a) => {
+        {attachments.map((a, index) => {
           const canPreview = a.kind === "image" && Boolean(projectId);
           const imageUrl = canPreview ? projectRawUrl(projectId!, a.path) : null;
           return (
             <div key={a.path} className={`staged-chip staged-${a.kind}`}>
+              <span className="staged-order" aria-label={`Attachment ${index + 1}`}>
+                {index + 1}
+              </span>
               {canPreview && imageUrl ? (
                 <button
                   type="button"
@@ -2078,18 +2107,63 @@ function StagedAttachments({
   );
 }
 
+function workspaceContextIcon(item: WorkspaceContextItem): IconName {
+  if (item.kind === 'browser') return 'globe';
+  if (item.kind === 'folder' || item.kind === 'design-files') return 'folder';
+  if (item.kind === 'terminal') return 'terminal';
+  if (item.kind === 'side-chat') return 'comment';
+  if (item.kind === 'design-system') return 'blocks';
+  return 'file';
+}
+
+function workspaceContextTitle(item: WorkspaceContextItem): string {
+  return [
+    workspaceContextKindLabel(item.kind),
+    item.path ? `path: ${item.path}` : null,
+    item.absolutePath ? `absolute: ${item.absolutePath}` : null,
+    item.url ? `url: ${item.url}` : null,
+    item.title ? `title: ${item.title}` : null,
+  ].filter(Boolean).join(' | ');
+}
+
+function workspaceContextKindLabel(kind: WorkspaceContextItem['kind']): string {
+  switch (kind) {
+    case 'browser':
+      return 'Browser';
+    case 'design-files':
+      return 'Design files';
+    case 'design-system':
+      return 'Design system';
+    case 'folder':
+      return 'Folder';
+    case 'terminal':
+      return 'Terminal';
+    case 'side-chat':
+      return 'Side chat';
+    case 'live-artifact':
+      return 'Live artifact';
+    case 'file':
+    default:
+      return 'File';
+  }
+}
+
 function StagedRunContexts({
+  workspaceItem,
   skills,
   mcpServers,
   connectors,
+  onRemoveWorkspace,
   onRemoveSkill,
   onRemoveMcp,
   onRemoveConnector,
   t,
 }: {
+  workspaceItem?: WorkspaceContextItem | null;
   skills: SkillSummary[];
   mcpServers: McpServerConfig[];
   connectors: ConnectorDetail[];
+  onRemoveWorkspace: (id: string) => void;
   onRemoveSkill: (id: string) => void;
   onRemoveMcp: (id: string) => void;
   onRemoveConnector: (id: string) => void;
@@ -2100,6 +2174,28 @@ function StagedRunContexts({
       className="staged-row staged-context-row"
       data-testid="staged-contexts"
     >
+      {workspaceItem ? (
+        <div
+          key={workspaceItem.id}
+          className={`staged-chip staged-context staged-context--workspace staged-context--workspace-${workspaceItem.kind}`}
+        >
+          <span className="staged-icon" aria-hidden>
+            <Icon name={workspaceContextIcon(workspaceItem)} size={12} />
+          </span>
+          <span className="staged-name" title={workspaceContextTitle(workspaceItem)}>
+            <span className="staged-context-kind">Current</span>
+            {workspaceItem.label}
+          </span>
+          <button
+            className="staged-remove"
+            onClick={() => onRemoveWorkspace(workspaceItem.id)}
+            title={t('common.delete')}
+            aria-label={t('chat.removeAria', { name: workspaceItem.label })}
+          >
+            <Icon name="close" size={11} />
+          </button>
+        </div>
+      ) : null}
       {skills.map((s) => (
         <div
           key={s.id}

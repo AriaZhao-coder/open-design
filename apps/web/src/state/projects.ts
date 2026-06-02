@@ -576,6 +576,30 @@ export async function saveTabs(
   }
 }
 
+/**
+ * Write tab state to the local cache ONLY (synchronous localStorage), returning
+ * the `updatedAt`-stamped state. Callers that debounce the canonical daemon
+ * write use this so the cache is always current — `loadTabs` reconciles cache
+ * vs daemon by `updatedAt`, so a debounced (or dropped) daemon PUT never loses
+ * data: a newer cache is re-pushed on next load.
+ */
+export function cacheTabsLocally(projectId: string, state: OpenTabsState): OpenTabsState {
+  return writeCachedTabs(projectId, state);
+}
+
+/** Persist already-stamped tab state to the daemon (the debounced write). */
+export async function persistTabsToDaemonNow(
+  projectId: string,
+  state: OpenTabsState,
+): Promise<void> {
+  try {
+    await persistTabsToDaemon(projectId, state);
+  } catch {
+    // best-effort; the local cache (written via cacheTabsLocally) is canonical
+    // and will re-push on the next loadTabs reconciliation.
+  }
+}
+
 // ---------- plugins ----------
 // Plan §3.C1 — plugin discovery + apply.
 //

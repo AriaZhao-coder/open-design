@@ -3,12 +3,20 @@
 import type { ComponentProps } from 'react';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { KEY_ENTER_COMMAND } from 'lexical';
+import {
+  $getRoot,
+  $isElementNode,
+  $isTextNode,
+  KEY_ENTER_COMMAND,
+  type LexicalEditor,
+  type LexicalNode,
+} from 'lexical';
 
 import {
   LexicalComposerInput,
   type LexicalComposerInputHandle,
 } from '../../../src/components/composer/LexicalComposerInput';
+import { $isMentionNode } from '../../../src/components/composer/MentionNode';
 import type { InlineMentionEntity } from '../../../src/utils/inlineMentions';
 
 const KNOWN: InlineMentionEntity[] = [
@@ -101,6 +109,100 @@ describe('LexicalComposerInput', () => {
     await waitFor(() => expect(ref.current?.getText()).toBe('something'));
     act(() => ref.current?.clear());
     await waitFor(() => expect(ref.current?.getText()).toBe(''));
+  });
+
+  // Reach the live editor instance Lexical attaches to the contenteditable
+  // root, so the gesture below runs through the real React-mounted pipeline
+  // (reconciler createDOM/updateDOM on the cloned node + the OnChange/Trigger
+  // update listeners), not a bare createEditor() like the node-level unit test.
+  function liveEditor(host: HTMLElement): LexicalEditor {
+    const editor = (host as HTMLElement & { __lexicalEditor?: LexicalEditor })
+      .__lexicalEditor;
+    expect(editor).toBeTruthy();
+    return editor!;
+  }
+
+  function findMention(para: LexicalNode | null) {
+    return $isElementNode(para)
+      ? (para.getChildren().find((c) => $isMentionNode(c)) ?? null)
+      : null;
+  }
+
+  it('deleting a mention pill through the live editor does not stack-overflow (token-mode clone regression)', async () => {
+    // The user-facing repro for the MentionNode constructor-recursion crash:
+    // seed a pill, then Backspace over it. A backward delete-character on an
+    // atomic token clones the EXISTING MentionNode via getWritable and
+    // reconciles its removal — the exact path that used to recurse
+    // setMode → getWritable → clone → constructor → setMode → "Maximum call
+    // stack size exceeded". This drives it end-to-end through the mounted
+    // editor, complementing MentionNode.test.ts's node-level getWritable guard.
+    const { getByTestId, ref } = setup({ draft: 'Use @designs/landing.html now' });
+    const host = getByTestId('chat-composer-input');
+    await waitFor(() =>
+      expect(host.querySelector('.composer-inline-mention')).not.toBeNull(),
+    );
+    const editor = liveEditor(host);
+
+    expect(() => {
+      act(() => {
+        editor.update(
+          () => {
+            const mention = findMention($getRoot().getFirstChild());
+            // Removing the atomic token is what Backspace ultimately performs
+            // on it. `remove()` clones the EXISTING node via getWritable (the
+            // recursion trigger) and reconciles the span removal — deterministic
+            // in jsdom, unlike a DOM-selection-driven deleteCharacter.
+            mention?.remove();
+          },
+          { discrete: true },
+        );
+      });
+    }).not.toThrow();
+
+    await waitFor(() =>
+      expect(host.querySelector('.composer-inline-mention')).toBeNull(),
+    );
+    expect(ref.current?.getText()).not.toContain('@designs/landing.html');
+  });
+
+  it('moving the caret across a mention (selection-only) does not re-fire onChange or corrupt the text', async () => {
+    // The "操作光标" worry: arrow-stepping a collapsed caret onto/across the
+    // atomic pill is a selection-only update. OnChangePlugin is dirty-guarded
+    // (empty dirtyElements + dirtyLeaves → bail), so it must NOT re-serialize,
+    // re-fold the entity list, or reseed — the caret move stays free and the
+    // serialized text is untouched. (TriggerPlugin still runs; it just reports
+    // no @/slash trigger for a caret sitting on a MentionNode.)
+    const { getByTestId, onChange, ref } = setup({
+      draft: 'Use @designs/landing.html now',
+    });
+    const host = getByTestId('chat-composer-input');
+    await waitFor(() =>
+      expect(host.querySelector('.composer-inline-mention')).not.toBeNull(),
+    );
+    const editor = liveEditor(host);
+    const callsAfterSeed = onChange.mock.calls.length;
+    const before = ref.current?.getText();
+
+    expect(() => {
+      act(() => {
+        editor.update(
+          () => {
+            const mention = findMention($getRoot().getFirstChild());
+            // Collapsed caret at the pill's leading edge — what ArrowLeft onto
+            // the token produces. No text mutation.
+            if ($isTextNode(mention)) mention.select(0, 0);
+          },
+          { discrete: true },
+        );
+      });
+    }).not.toThrow();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // No new onChange for a pure caret move, and the text round-trips unchanged.
+    expect(onChange.mock.calls.length).toBe(callsAfterSeed);
+    expect(ref.current?.getText()).toBe(before);
   });
 
   // TODO(lexical-jsdom): jsdom can't make `editor.isComposing()` return true.

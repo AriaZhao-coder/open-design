@@ -305,7 +305,12 @@ export function BoardComposerPopover({
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [commenting, draft, images.length, existingImages.length, notes.length, podMembers.length]);
+    // Key only on `commenting` (which mounts/unmounts the compose section, so
+    // the observed node identity can change). Content-driven size changes —
+    // typing in the textarea, adding images/notes — are reported by the
+    // ResizeObserver itself, so listing draft/images/notes here only churned a
+    // teardown + re-observe + synchronous getBoundingClientRect on every keystroke.
+  }, [commenting]);
   const trimmedDraft = draft.trim();
   const existingNote = existing?.note.trim() ?? '';
   const hasFreshImage = images.length > 0;

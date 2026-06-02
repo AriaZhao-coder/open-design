@@ -55,8 +55,8 @@ import {
   type ProjectFile,
   type ProjectFolder,
 } from '../types';
-import type { ChatSessionMode } from '@open-design/contracts';
-import { createTerminal } from '../state/projects';
+import type { ChatSessionMode, WorkspaceContextItem } from '@open-design/contracts';
+import { createTerminal, killTerminal } from '../state/projects';
 import { DesignFilesPanel } from './DesignFilesPanel';
 import { DesignBrowserPanel, labelFromUrl, type BrowserPageInfo } from './DesignBrowserPanel';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
@@ -150,6 +150,7 @@ interface Props {
   activeConversationChat?: ActiveConversationChatState;
   /** Create a context-seeded conversation and resolve its id (backs the launcher). */
   onCreateSideChat?: (seedFromConversationId: string | null) => Promise<string | null>;
+  onActiveContextChange?: (context: WorkspaceContextItem | null) => void;
 }
 
 interface SketchState {
@@ -163,9 +164,15 @@ interface SketchState {
   saving: boolean;
 }
 
-const DESIGN_FILES_TAB = '__design_files__';
-const DESIGN_SYSTEM_TAB = '__design_system__';
+export const DESIGN_FILES_TAB = '__design_files__';
+export const DESIGN_SYSTEM_TAB = '__design_system__';
 const BROWSER_TAB_PREFIX = '__browser__:';
+// Keep at most this many embedded-browser `<webview>`s mounted at once. Each is
+// a full out-of-process Chromium guest (timers, JS, network, a GPU surface), so
+// mounting every open browser tab made memory/CPU grow linearly with tab count.
+// We keep an LRU of the most-recently-activated browser tabs live and unmount
+// the rest; switching back to an evicted tab remounts (reloads) it.
+const BROWSER_KEEPALIVE_CAP = 3;
 type TabDropEdge = 'before' | 'after';
 type BrowserWorkspaceTab = ProjectBrowserWorkspaceTab;
 type WorkspaceOrderedTab =
@@ -224,6 +231,12 @@ function formatBrowserTabUrl(url: string): string {
   } catch {
     return url;
   }
+}
+
+function joinDisplayPath(root: string, child: string): string {
+  const cleanRoot = root.replace(/[\\/]+$/u, '');
+  const cleanChild = child.replace(/^[\\/]+/u, '');
+  return cleanChild ? `${cleanRoot}/${cleanChild}` : cleanRoot;
 }
 
 interface DesignSystemProjectSectionReview {
@@ -300,6 +313,7 @@ export function FileWorkspace({
   onNewConversation,
   activeConversationChat,
   onCreateSideChat,
+  onActiveContextChange,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -360,6 +374,25 @@ export function FileWorkspace({
   const tabsBarRef = useRef<HTMLDivElement | null>(null);
   const draggedTabNameRef = useRef<string | null>(null);
   const browserTabSequenceRef = useRef(0);
+
+  // Maps a terminal tab's original session id (the `terminal:<id>` suffix) to
+  // the PTY session it is CURRENTLY bound to. Restart rebinds the surface to a
+  // fresh session while the tab id stays constant, and the surface is unmounted
+  // whenever its tab isn't active — so this ref (which survives the child's
+  // unmount) is the only place that knows which PTY to kill on an explicit
+  // Close. `<TerminalViewer onSessionIdChange>` keeps it current.
+  const terminalLiveSessionsRef = useRef<Map<string, string>>(new Map());
+  const handleTerminalSessionChange = useCallback(
+    (originalId: string, sessionId: string) => {
+      terminalLiveSessionsRef.current.set(originalId, sessionId);
+    },
+    [],
+  );
+
+  // LRU of browser tab ids whose `<webview>` is currently mounted (most-recent
+  // first). A browser tab is mounted only after it has been activated; we cap
+  // the live set at BROWSER_KEEPALIVE_CAP and unmount the rest.
+  const [liveBrowserTabIds, setLiveBrowserTabIds] = useState<string[]>([]);
 
   const visibleFiles = useMemo(
     () => files.filter((file) => !isLiveArtifactImplementationPath(file.name)),
@@ -502,6 +535,25 @@ export function FileWorkspace({
     setActiveTab(name);
   }
 
+  // Promote the active browser tab to the front of the keep-alive LRU (and cap
+  // it). Activating a browser tab is the only thing that mounts its webview.
+  useEffect(() => {
+    if (!isBrowserTabId(activeTab)) return;
+    setLiveBrowserTabIds((prev) => {
+      if (prev[0] === activeTab) return prev;
+      return [activeTab, ...prev.filter((id) => id !== activeTab)].slice(0, BROWSER_KEEPALIVE_CAP);
+    });
+  }, [activeTab]);
+
+  // Drop closed browser tabs from the live set so their webview unmounts.
+  useEffect(() => {
+    setLiveBrowserTabIds((prev) => {
+      const existing = new Set(browserTabs.map((tab) => tab.id));
+      const next = prev.filter((id) => existing.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [browserTabs]);
+
   // When the persisted tab list changes and the active tab is gone, fall
   // back to the last remaining tab. Skip transient activeTab values
   // (DESIGN_FILES_TAB, pending sketches) since those aren't in persistedTabs.
@@ -564,6 +616,16 @@ export function FileWorkspace({
   }
 
   function closeTab(name: string) {
+    // Terminal tabs own a daemon PTY that now outlives unmount (so tab switches
+    // reattach cheaply). An explicit Close is the one place we terminate it —
+    // kill the LIVE session (which may differ from the tab's original id after
+    // a Restart), falling back to the tab id when the surface never reported.
+    if (isTerminalTabId(name)) {
+      const originalId = terminalIdFromTabId(name);
+      const liveId = terminalLiveSessionsRef.current.get(originalId) ?? originalId;
+      void killTerminal(projectId, liveId, { keepalive: true });
+      terminalLiveSessionsRef.current.delete(originalId);
+    }
     const sketchEntry = sketches[name];
     const isPending = sketchEntry && !sketchEntry.persisted;
     const hasUnsavedStrokes = sketchEntry && (sketchEntry.dirty || !sketchEntry.persisted);
@@ -1015,6 +1077,97 @@ export function FileWorkspace({
     return liveArtifactEntries.find((entry) => entry.tabId === activeTab) ?? null;
   }, [activeTab, liveArtifactEntries]);
 
+  const activeWorkspaceContext = useMemo<WorkspaceContextItem | null>(() => {
+    if (activeTab === DESIGN_SYSTEM_TAB && designSystemProject) {
+      return {
+        id: 'workspace:design-system',
+        kind: 'design-system',
+        label: 'Design System',
+        tabId: activeTab,
+      };
+    }
+    if (activeTab === DESIGN_FILES_TAB) {
+      const trimmedDir = uploadDir.trim();
+      const label = trimmedDir.split('/').filter(Boolean).pop() || t('workspace.designFiles');
+      return {
+        id: trimmedDir ? `folder:${trimmedDir}` : 'workspace:design-files',
+        kind: trimmedDir ? 'folder' : 'design-files',
+        label,
+        tabId: activeTab,
+        ...(trimmedDir ? { path: trimmedDir } : {}),
+        ...(resolvedDir ? { absolutePath: joinDisplayPath(resolvedDir, trimmedDir) } : {}),
+      };
+    }
+    if (isBrowserTabId(activeTab)) {
+      const tab = browserTabs.find((candidate) => candidate.id === activeTab);
+      if (!tab) return null;
+      const url = tab.url?.trim() ?? '';
+      const label = url ? tab.title?.trim() || labelFromUrl(url) : tab.label;
+      return {
+        id: `browser:${tab.id}`,
+        kind: 'browser',
+        label,
+        tabId: tab.id,
+        ...(tab.title ? { title: tab.title } : {}),
+        ...(url ? { url } : {}),
+      };
+    }
+    if (isTerminalTabId(activeTab)) {
+      const terminalId = terminalIdFromTabId(activeTab);
+      return {
+        id: `terminal:${terminalId}`,
+        kind: 'terminal',
+        label: t('workspace.newTerminal'),
+        tabId: activeTab,
+      };
+    }
+    if (isSideChatTabId(activeTab)) {
+      const conversationId = conversationIdFromSideChatTabId(activeTab);
+      const conversation = conversations.find((item) => item.id === conversationId);
+      return {
+        id: `side-chat:${conversationId}`,
+        kind: 'side-chat',
+        label: conversation?.title?.trim() || t('workspace.sideChatDefaultTitle'),
+        tabId: activeTab,
+      };
+    }
+    if (activeLiveArtifact) {
+      return {
+        id: `live-artifact:${activeLiveArtifact.artifactId}`,
+        kind: 'live-artifact',
+        label: activeLiveArtifact.title,
+        tabId: activeLiveArtifact.tabId,
+        path: activeLiveArtifact.slug,
+      };
+    }
+    if (activeFile) {
+      const filePath = activeFile.path ?? activeFile.name;
+      return {
+        id: `file:${filePath}`,
+        kind: 'file',
+        label: filePath.split('/').filter(Boolean).pop() || filePath,
+        tabId: activeTab,
+        path: filePath,
+        ...(resolvedDir ? { absolutePath: joinDisplayPath(resolvedDir, filePath) } : {}),
+      };
+    }
+    return null;
+  }, [
+    activeFile,
+    activeLiveArtifact,
+    activeTab,
+    browserTabs,
+    conversations,
+    designSystemProject,
+    resolvedDir,
+    t,
+    uploadDir,
+  ]);
+
+  useEffect(() => {
+    onActiveContextChange?.(activeWorkspaceContext);
+  }, [activeWorkspaceContext, onActiveContextChange]);
+
   // Tabs rendered are persisted tabs plus any pending (un-saved) sketches.
   const tabNames = useMemo(() => {
     const seen = new Set(persistedTabs);
@@ -1065,7 +1218,7 @@ export function FileWorkspace({
 
   // The "+" launcher's create-new actions come from the registry. `openTab`
   // reuses the same tab-state path as opening a file so a new chat:<id> /
-  // terminal:<id> tab is focused; `createBrowser` opens a browser-harness tab.
+  // terminal:<id> tab is focused; `createBrowser` opens an embedded browser tab.
   // `createSideChat` is only wired when the parent threaded the chat callbacks,
   // so a chat-less workspace hides that action entirely.
   // Built fresh each render (not memoized): `createBrowser` closes over
@@ -1332,7 +1485,7 @@ export function FileWorkspace({
             </button>
           </div>
         ) : null}
-        {browserTabs.map((browserTab) => (
+        {browserTabs.filter((browserTab) => liveBrowserTabIds.includes(browserTab.id)).map((browserTab) => (
           <div
             key={`${projectId}:${browserTab.id}`}
             className={`ws-browser-panel ${activeTab === browserTab.id ? 'active' : ''}`}
@@ -1488,6 +1641,7 @@ export function FileWorkspace({
             projectId={projectId}
             terminalId={terminalIdFromTabId(activeTab)}
             onClose={() => closeTab(activeTab)}
+            onSessionIdChange={handleTerminalSessionChange}
           />
         ) : activeLiveArtifact ? (
           <LiveArtifactViewer

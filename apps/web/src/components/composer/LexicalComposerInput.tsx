@@ -404,11 +404,21 @@ function OnChangePlugin({
   const entitiesRef = useRef(knownEntities);
   entitiesRef.current = knownEntities;
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      const { text, present } = serializeComposer(editorState);
-      const folded = foldPresentEntities(text, present, entitiesRef.current);
-      onChangeRef.current(text, folded);
-    });
+    return editor.registerUpdateListener(
+      ({ editorState, dirtyElements, dirtyLeaves }) => {
+        // Skip selection-only updates (arrow keys, clicks, focus/blur,
+        // programmatic select): they don't change the serialized text, so
+        // re-serializing + re-folding the entity list on every caret move is
+        // wasted work. The controlled-value loop is broken by SeedingPlugin's
+        // `draft === current` guard, NOT by this callback, so skipping here is
+        // safe. (Only OnChangePlugin is guarded this way — TriggerPlugin MUST
+        // still run on selection-only updates to drive the @/slash popover.)
+        if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
+        const { text, present } = serializeComposer(editorState);
+        const folded = foldPresentEntities(text, present, entitiesRef.current);
+        onChangeRef.current(text, folded);
+      },
+    );
   }, [editor]);
   return null;
 }

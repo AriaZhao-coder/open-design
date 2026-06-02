@@ -134,6 +134,24 @@ export function PreviewDrawOverlay({
     }
   }, []);
 
+  // rAF-coalesce redraws driven by the pointermove hot path so a high-Hz
+  // pointer (or trackpad) repaints the canvas at most once per frame instead of
+  // once per raw event. One-shot redraws (pointerup, undo, clear) stay sync.
+  const redrawFrameRef = useRef<number | null>(null);
+  const scheduleRedraw = useCallback(() => {
+    if (redrawFrameRef.current !== null) return;
+    redrawFrameRef.current = requestAnimationFrame(() => {
+      redrawFrameRef.current = null;
+      redraw();
+    });
+  }, [redraw]);
+  useEffect(
+    () => () => {
+      if (redrawFrameRef.current !== null) cancelAnimationFrame(redrawFrameRef.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     const wrap = wrapRef.current;
     const cvs = canvasRef.current;
@@ -225,15 +243,20 @@ export function PreviewDrawOverlay({
     if (!active || sending) return;
     if (boxDraftRef.current) {
       boxDraftRef.current.current = pointFromEvent(e);
-      redraw();
+      scheduleRedraw();
       return;
     }
     if (!drawingRef.current) return;
     drawingRef.current.points.push(pointFromEvent(e));
-    redraw();
+    scheduleRedraw();
   }
   function onPointerUp(e: PointerEvent) {
     if (!active || sending) return;
+    // A final synchronous redraw follows; drop any pending move-frame.
+    if (redrawFrameRef.current !== null) {
+      cancelAnimationFrame(redrawFrameRef.current);
+      redrawFrameRef.current = null;
+    }
     if (boxDraftRef.current) {
       boxDraftRef.current.current = pointFromEvent(e);
       const next = normalizedRectFromPoints(boxDraftRef.current.start, boxDraftRef.current.current);
