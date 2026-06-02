@@ -114,6 +114,8 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain('default: "off"');
     expect(workflow).toContain("name: Prepare beta metadata");
     expect(workflow).toContain("OPEN_DESIGN_BETA_METADATA_URL: ${{ inputs.s3_public_origin }}/beta/latest/metadata.json");
+    expect(workflow).toContain("path: _release-metadata");
+    expect(workflow).toContain("working-directory: _release-metadata");
     expect(workflow).toContain("apps/packaged/package.json");
     expect(workflow).toContain("scripts/release-beta.ts");
     expect(workflow).toContain('git fetch --force --depth=1 origin "+refs/tags/open-design-v*:refs/tags/open-design-v*"');
@@ -130,6 +132,7 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("Upload windows publish manifest");
     expect(workflow).toContain("open-design-beta-win-publish-manifest");
     expect(workflow).toContain("runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]");
+    expect(workflow).toContain('git -C "$GITHUB_WORKSPACE" sparse-checkout disable || true');
     expect(workflow).toContain("bash .github/scripts/release/build-mac.sh");
     expect(workflow).toContain("MAC_SIGN_MODE: ${{ inputs.mac_sign_mode }}");
     expect(workflow).toContain("OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile");

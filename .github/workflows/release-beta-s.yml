@@ -113,12 +113,14 @@ jobs:
           clean: false
           fetch-depth: 1
           lfs: false
+          path: _release-metadata
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             apps/packaged/package.json
             scripts/release-beta.ts
 
       - name: Fetch stable release tags
+        working-directory: _release-metadata
         run: git fetch --force --depth=1 origin "+refs/tags/open-design-v*:refs/tags/open-design-v*"
 
       - name: Validate self-hosted beta inputs
@@ -135,6 +137,7 @@ jobs:
 
       - name: Prepare beta release metadata
         id: beta
+        working-directory: _release-metadata
         run: |
           set -euo pipefail
           if ! command -v rehash >/dev/null 2>&1; then
@@ -223,6 +226,13 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
     timeout-minutes: 45
     steps:
+      - name: Reset sparse checkout state
+        run: |
+          set -euo pipefail
+          if [ -d "$GITHUB_WORKSPACE/.git" ]; then
+            git -C "$GITHUB_WORKSPACE" sparse-checkout disable || true
+          fi
+
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
