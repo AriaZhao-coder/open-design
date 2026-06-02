@@ -242,6 +242,7 @@ import {
   scanRunEventsForUsageAnalytics,
   summarizeRunTimingAnalytics,
 } from './run-analytics-observability.js';
+import { summarizeRunDiagnosticsForAnalytics } from './run-diagnostics.js';
 import {
   countDesignSystemPreviewModules,
   countNewHtmlArtifacts,
@@ -13539,6 +13540,11 @@ export async function startServer({
           telemetry: run.analyticsTelemetry,
           events: run.events,
         });
+        const diagnosticsAnalytics = summarizeRunDiagnosticsForAnalytics({
+          events: run.events,
+          exitCode: status.exitCode ?? null,
+          signal: status.signal ?? null,
+        });
         const finishedModelId =
           typeof reqBody.model === 'string' && reqBody.model.trim()
             ? modelIdForTracking(reqBody.model)
@@ -13579,6 +13585,7 @@ export async function startServer({
               missing_font_count: 0,
             } : {}),
             ...timingAnalytics,
+            ...diagnosticsAnalytics,
             langfuse_trace_id: run.id,
             ...langfuseDeliveryForAnalytics,
             ...(errorCode ? { error_code: errorCode } : {}),

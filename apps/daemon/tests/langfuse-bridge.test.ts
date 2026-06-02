@@ -473,6 +473,46 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     );
   });
 
+  it('adds redacted stderr tail metadata for failed runs', async () => {
+    await writeAppCfg({
+      installationId: 'install-1',
+      telemetry: { metrics: true, content: true },
+    });
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 207 }));
+    const rawKey = `sk-${'a'.repeat(48)}`;
+    process.env.LANGFUSE_PUBLIC_KEY = 'pk';
+    process.env.LANGFUSE_SECRET_KEY = 'sk';
+    try {
+      await reportRunCompletedFromDaemon({
+        db: makeDbWithListMessages({ 'conv-1': [] }),
+        dataDir,
+        run: makeRun({
+          status: 'failed',
+          events: [
+            { id: 1, event: 'stderr', data: { chunk: `provider 429 OPENAI_API_KEY=${rawKey}\n` } },
+            { id: 2, event: 'error', data: { error: { message: 'provider failed' } } },
+          ],
+        }) as any,
+        fetchImpl: fetchSpy as any,
+      });
+    } finally {
+      delete process.env.LANGFUSE_PUBLIC_KEY;
+      delete process.env.LANGFUSE_SECRET_KEY;
+    }
+
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    const payload = init.body as string;
+    const batch = JSON.parse(payload).batch as any[];
+    expect(batch[0].body.metadata.stderr).toEqual({
+      tail: 'provider 429 OPENAI_API_KEY=[REDACTED:sk_key]',
+      lineCount: 1,
+      truncated: false,
+    });
+    expect(payload).not.toContain(rawKey);
+  });
+
   it('survives a missing assistant message (web has not PUT yet)', async () => {
     await writeAppCfg({
       installationId: 'install-1',

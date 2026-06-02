@@ -32,6 +32,7 @@ import {
   summarizeRunTimingAnalytics,
   type RunTelemetryTimestamps,
 } from './run-analytics-observability.js';
+import { collectStderrTailSummary } from './run-diagnostics.js';
 import { classifyRunFailure } from './run-failure-classification.js';
 import { deriveRunErrorCode, runResultFromStatus } from './run-result.js';
 
@@ -370,6 +371,9 @@ export async function reportRunCompletedFromDaemon(
       telemetry: run.analyticsTelemetry ?? null,
       events: run.events,
     });
+    const stderr = status === 'succeeded'
+      ? undefined
+      : collectStderrTailSummary(run.events);
     const turn = turnInfoFromRun(run);
     const runtime: RuntimeInfo = {
       ...getRuntimeInfo(opts.appVersion ?? null),
@@ -389,6 +393,7 @@ export async function reportRunCompletedFromDaemon(
         ...(errorCode ? { errorCode } : {}),
         ...(failure ? { failure } : {}),
         timings,
+        ...(stderr ? { stderr } : {}),
       },
       message: {
         messageId: run.assistantMessageId ?? '',

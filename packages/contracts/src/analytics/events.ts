@@ -216,6 +216,18 @@ export type TrackingRunFailureUserAction =
   | 'reduce_context'
   | 'install_cli'
   | 'none';
+export type TrackingRunDiagnosticSource =
+  | 'error_event'
+  | 'stderr'
+  | 'exit_code'
+  | 'signal'
+  | 'unknown';
+export type TrackingStderrLineCountBucket =
+  | 'none'
+  | '1_5'
+  | '6_20'
+  | '21_100'
+  | 'gt_100';
 export type TrackingLangfuseDeliveryStatus =
   | 'not_expected'
   | 'queued'
@@ -1812,6 +1824,9 @@ export interface RunFinishedProps extends Omit<RunCreatedProps, 'area'> {
   langfuse_expected?: boolean;
   langfuse_drop_reason?: TrackingLangfuseDropReason;
   langfuse_delivery_status?: TrackingLangfuseDeliveryStatus;
+  diagnostic_source?: TrackingRunDiagnosticSource;
+  stderr_present?: boolean;
+  stderr_line_count_bucket?: TrackingStderrLineCountBucket;
   artifact_count: number;
   input_tokens?: number;
   input_tokens_provider?: number;

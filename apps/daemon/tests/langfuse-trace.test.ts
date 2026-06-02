@@ -709,6 +709,40 @@ describe('reportRunCompleted', () => {
     });
   });
 
+  it('keeps stderr out of trace input/output and stores only a redacted metadata tail', () => {
+    const batch = buildTracePayload(
+      makeCtx({
+        prefs: { metrics: true, content: true, artifactManifest: false },
+        run: {
+          runId: 'run-err',
+          status: 'failed',
+          startedAt: 1_700_000_000_000,
+          endedAt: 1_700_000_004_500,
+          error: 'provider failed',
+          stderr: {
+            tail: 'HTTP 429 OPENAI_API_KEY=[REDACTED:openai_key]',
+            lineCount: 12,
+            truncated: true,
+          },
+        },
+      }),
+    ) as any[];
+
+    const trace = bodyOf(batch, 'trace-create');
+    const generation = bodyOf(batch, 'generation-create', 'llm');
+
+    expect(trace.input).toBe('Make a landing page for a coffee shop.');
+    expect(trace.output).toBe('Here is a landing page draft …');
+    expect(generation.input).toBe('Make a landing page for a coffee shop.');
+    expect(generation.output).toBe('Here is a landing page draft …');
+    expect(trace.metadata.stderr).toEqual({
+      tail: 'HTTP 429 OPENAI_API_KEY=[REDACTED:openai_key]',
+      lineCount: 12,
+      truncated: true,
+    });
+    expect(JSON.stringify(batch)).not.toContain('sk-raw');
+  });
+
   it('POSTs serialized ingestion batches to the Open Design telemetry relay', async () => {
     const relayConfig: TelemetrySinkConfig = {
       kind: 'relay',

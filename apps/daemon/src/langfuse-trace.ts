@@ -90,6 +90,11 @@ export interface RunSummary {
   errorCode?: string;
   failure?: RunFailureClassification;
   timings?: RunTimingAnalytics;
+  stderr?: {
+    tail: string;
+    lineCount: number;
+    truncated: boolean;
+  };
 }
 
 export interface MessageSummary {
@@ -408,6 +413,7 @@ export function buildTracePayload(ctx: ReportContext): unknown[] {
     ...langfuseDelivery,
     ...(ctx.run.failure ?? {}),
     ...(ctx.run.timings ?? {}),
+    stderr: ctx.run.stderr,
     eventsSummary: ctx.eventsSummary,
     tokens,
     artifacts: artifactsList,
