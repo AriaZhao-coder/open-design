@@ -1041,6 +1041,78 @@ describe('FileViewer SVG artifacts', () => {
     expect(screen.queryByText('Trend card')).toBeNull();
   });
 
+  // #3646 / #3647 exit-path regression: leaving edit mode while an inline text
+  // edit is live must ask the iframe to commit and WAIT for the session to end
+  // before tearing down, otherwise the final edit is dropped.
+  it('waits for the iframe to finish the inline text edit before leaving edit mode (#3646)', async () => {
+    const textTarget = {
+      ...manualEditTarget('copy', 'Editable copy', 20),
+      kind: 'text' as const,
+      tagName: 'p',
+      text: 'Editable copy',
+      fields: { text: 'Editable copy' },
+      isLayoutContainer: false,
+      outerHtml: '<p data-od-id="copy">Editable copy</p>',
+    };
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={baseFile({
+          name: 'page.html',
+          path: 'page.html',
+          mime: 'text/html',
+          kind: 'html',
+          artifactManifest: {
+            version: 1,
+            kind: 'html',
+            title: 'Page',
+            entry: 'page.html',
+            renderer: 'html',
+            exports: ['html'],
+          },
+        })}
+        liveHtml='<html><body><p data-od-id="copy">Editable copy</p></body></html>'
+      />,
+    );
+
+    const toggle = screen.getByTestId('manual-edit-mode-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-preview-frame').getAttribute('data-od-render-mode')).toBe('srcdoc');
+    });
+    const frame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    const postMessage = vi.spyOn(frame.contentWindow!, 'postMessage');
+
+    // An inline text edit is in progress inside the iframe.
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: { type: 'od-edit-select', target: textTarget },
+    }));
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: { type: 'od-edit-text-session', id: 'copy', active: true },
+    }));
+
+    // Exiting asks the iframe to commit, then must stay in edit mode until the
+    // session is acknowledged (the prior fix tore down here and lost the edit).
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith({ type: 'od-edit-text-finish', commit: true }, '*');
+    });
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+    // The iframe acks the finished session; only now does exit complete.
+    window.dispatchEvent(new MessageEvent('message', {
+      source: frame.contentWindow,
+      data: { type: 'od-edit-text-session', id: 'copy', active: false, committed: true, changed: true },
+    }));
+
+    await waitFor(() => {
+      expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    });
+  });
+
   it('renders sandbox-shim artifacts on the srcdoc transport without entering edit mode (#2791)', () => {
     const file = baseFile({
       name: 'search.html',

@@ -4873,6 +4873,13 @@ function HtmlViewer({
   const [manualEditPageStylesOpen, setManualEditPageStylesOpen] = useState(false);
   const [manualEditPanelPosition, setManualEditPanelPosition] = useState<{ left: number; top: number } | null>(null);
   const selectedManualEditTargetIdRef = useRef<string | null>(null);
+  // Tracks the iframe's in-flight inline text edit. `finishManualEditTextSession`
+  // posts the explicit finish and resolves only after the iframe acks AND the
+  // resulting commit has been applied, so exit/dismiss/cancel never tear down
+  // mid-round-trip and drop the final edit (the #3647 exit-path regression).
+  const manualEditTextSessionIdRef = useRef<string | null>(null);
+  const manualEditTextFinishRef = useRef<(() => void) | null>(null);
+  const manualEditTextCommitInFlightRef = useRef<Promise<unknown> | null>(null);
   const [manualEditDraft, setManualEditDraft] = useState<ManualEditDraft>(() => emptyManualEditDraft());
   const [manualEditHistory, setManualEditHistory] = useState<ManualEditHistoryEntry[]>([]);
   const [manualEditUndone, setManualEditUndone] = useState<ManualEditHistoryEntry[]>([]);
@@ -6079,6 +6086,9 @@ function HtmlViewer({
       setManualEditPageStylesOpen(false);
       setManualEditPanelPosition(null);
       selectedManualEditTargetIdRef.current = null;
+      manualEditTextSessionIdRef.current = null;
+      manualEditTextFinishRef.current = null;
+      manualEditTextCommitInFlightRef.current = null;
       setManualEditError(null);
       manualEditPendingStyleRef.current = null;
       if (manualEditStyleTimerRef.current) {
@@ -6109,6 +6119,9 @@ function HtmlViewer({
         return;
       }
       if (data.type === 'od-edit-hover') {
+        // While an inline text edit is live, hovering must not surface or switch
+        // any affordance — that instability is the other half of #3646.
+        if (manualEditTextSessionIdRef.current) return;
         // Hover only surfaces a lightweight "edit params" affordance; it must
         // NOT switch the pinned inspector. The panel changes only when the
         // user clicks that affordance (or a container/image body), so moving
@@ -6129,11 +6142,35 @@ function HtmlViewer({
         return;
       }
       if (data.type === 'od-edit-text-commit') {
-        void applyManualEdit({
+        // Keep the apply promise so a pending finish (exit/dismiss) can await it
+        // before tearing down — otherwise the final edit can be dropped.
+        manualEditTextCommitInFlightRef.current = applyManualEdit({
           id: String(data.id),
           kind: 'set-text',
           value: String(data.value),
         }, 'Edit text');
+        void manualEditTextCommitInFlightRef.current;
+        return;
+      }
+      if (data.type === 'od-edit-text-session') {
+        const sessionId = String(data.id || '');
+        if (data.active) {
+          manualEditTextSessionIdRef.current = sessionId;
+          return;
+        }
+        if (manualEditTextSessionIdRef.current === sessionId) {
+          manualEditTextSessionIdRef.current = null;
+        }
+        const pending = manualEditTextFinishRef.current;
+        if (pending) {
+          // settle() awaits the in-flight commit before resolving the caller's
+          // teardown, so the final edit is never dropped.
+          pending();
+        } else {
+          // Iframe-driven finish (Enter / clicking another target): nothing is
+          // awaiting teardown, so drop the now-stale commit promise.
+          manualEditTextCommitInFlightRef.current = null;
+        }
         return;
       }
     }
@@ -6249,7 +6286,45 @@ function HtmlViewer({
     setManualEditError(null);
   }
 
+  // Ends the iframe's inline text edit and resolves only once it acks (and any
+  // resulting commit has been applied). Callers that tear down edit state must
+  // await this so the final edit is never dropped — the #3647 exit-path bug.
+  // A timeout backstops a detached iframe so teardown can never hang.
+  function finishManualEditTextSession(commit: boolean): Promise<void> {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !manualEditTextSessionIdRef.current) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        // Mark the session ended even on the timeout path, so a follow-up
+        // clearManualEditTargetSelection (e.g. from cancel) does not see a live
+        // session and re-finish it with commit:true — turning cancel into save.
+        manualEditTextSessionIdRef.current = null;
+        if (manualEditTextFinishRef.current === settle) manualEditTextFinishRef.current = null;
+        // Always wait out the in-flight commit before resolving, so the final
+        // edit is persisted before teardown even if the timeout backstop won
+        // the race against the iframe's ack.
+        const commitInFlight = manualEditTextCommitInFlightRef.current;
+        manualEditTextCommitInFlightRef.current = null;
+        void (async () => {
+          try { await commitInFlight; } catch { /* applyManualEdit reports its own errors */ }
+          resolve();
+        })();
+      };
+      manualEditTextFinishRef.current = settle;
+      win.postMessage({ type: 'od-edit-text-finish', commit }, '*');
+      // Backstop a detached iframe so teardown can never hang; the ack path
+      // clears this timer when it wins.
+      timer = setTimeout(settle, 1500);
+    });
+  }
+
   async function exitManualEditModeAfterFlush(): Promise<boolean> {
+    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(true);
     const ok = await flushManualEditStyleSave();
     if (!ok) return false;
     setManualEditPanelPosition(null);
@@ -6289,8 +6364,12 @@ function HtmlViewer({
   }
 
   async function clearManualEditTargetSelection() {
+    // If an inline edit is still live (e.g. clearing the selection from the
+    // panel mid-edit), commit it through the iframe first so it is not lost.
+    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(true);
     cancelManualEditStyleDraft();
     selectedManualEditTargetIdRef.current = null;
+    manualEditTextSessionIdRef.current = null;
     setSelectedManualEditTarget(null);
     setManualEditPanelPosition(null);
     setManualEditDraft(emptyManualEditDraft(sourceRef.current ?? ''));
@@ -6302,13 +6381,15 @@ function HtmlViewer({
   // the toolbar toggle's job. Dismiss flushes any in-flight tweak first so
   // nothing is lost; cancel reverts the in-flight unsaved tweak instead.
   async function dismissManualEditPanel() {
+    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(true);
     const ok = await flushManualEditStyleSave();
     if (!ok) return;
     if (selectedManualEditTarget) void clearManualEditTargetSelection();
     else setManualEditPageStylesOpen(false);
   }
 
-  function cancelManualEditPanel() {
+  async function cancelManualEditPanel() {
+    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(false);
     if (selectedManualEditTarget) {
       void clearManualEditTargetSelection();
     } else {
@@ -8072,7 +8153,7 @@ function HtmlViewer({
         void dismissManualEditPanel();
       }}
       onCancelDraft={() => {
-        cancelManualEditPanel();
+        void cancelManualEditPanel();
       }}
       onSaveDraft={() => {
         void dismissManualEditPanel();
