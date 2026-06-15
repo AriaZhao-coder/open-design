@@ -6142,14 +6142,22 @@ function HtmlViewer({
         return;
       }
       if (data.type === 'od-edit-text-commit') {
-        // Keep the apply promise so a pending finish (exit/dismiss) can await it
-        // before tearing down — otherwise the final edit can be dropped.
-        manualEditTextCommitInFlightRef.current = applyManualEdit({
+        // Keep the apply promise reachable so any teardown (host- or
+        // iframe-initiated) can await it and honor a failed save before tearing
+        // down. It self-clears once resolved, keyed to identity so a newer
+        // commit is never clobbered.
+        const commit = applyManualEdit({
           id: String(data.id),
           kind: 'set-text',
           value: String(data.value),
         }, 'Edit text');
-        void manualEditTextCommitInFlightRef.current;
+        manualEditTextCommitInFlightRef.current = commit;
+        void (async () => {
+          try { await commit; } catch { /* failure honored by teardown / surfaced by applyManualEdit */ }
+          if (manualEditTextCommitInFlightRef.current === commit) {
+            manualEditTextCommitInFlightRef.current = null;
+          }
+        })();
         return;
       }
       if (data.type === 'od-edit-text-session') {
@@ -6166,11 +6174,11 @@ function HtmlViewer({
           // settle() awaits the in-flight commit before resolving the caller's
           // teardown, so the final edit is never dropped.
           pending();
-        } else {
-          // Iframe-driven finish (Enter / clicking another target): nothing is
-          // awaiting teardown, so drop the now-stale commit promise.
-          manualEditTextCommitInFlightRef.current = null;
         }
+        // Iframe-driven finishes (Enter / clicking another target) leave the
+        // commit promise in place; it self-clears on resolution, and any later
+        // teardown still awaits it via settlePendingManualEditCommit so a failed
+        // save is never silently torn down.
         return;
       }
     }
@@ -6290,10 +6298,15 @@ function HtmlViewer({
   // resulting commit has been applied). Callers that tear down edit state must
   // await this so the final edit is never dropped — the #3647 exit-path bug.
   // A timeout backstops a detached iframe so teardown can never hang.
-  function finishManualEditTextSession(commit: boolean): Promise<void> {
+  // Resolves to whether the session ended cleanly: true when there was nothing
+  // to commit or the commit succeeded, false when the pending text commit
+  // failed (applyManualEdit returned false / threw). Callers that tear down
+  // edit state must honor a false result — keep edit mode open and preserve the
+  // error so a failed save never looks like a successful one (#4291 review).
+  function finishManualEditTextSession(commit: boolean): Promise<boolean> {
     const win = iframeRef.current?.contentWindow;
-    if (!win || !manualEditTextSessionIdRef.current) return Promise.resolve();
-    return new Promise<void>((resolve) => {
+    if (!win || !manualEditTextSessionIdRef.current) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
       let settled = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
       const settle = () => {
@@ -6305,14 +6318,20 @@ function HtmlViewer({
         // session and re-finish it with commit:true — turning cancel into save.
         manualEditTextSessionIdRef.current = null;
         if (manualEditTextFinishRef.current === settle) manualEditTextFinishRef.current = null;
-        // Always wait out the in-flight commit before resolving, so the final
-        // edit is persisted before teardown even if the timeout backstop won
-        // the race against the iframe's ack.
+        // Wait out the in-flight commit before resolving, so the final edit is
+        // persisted before teardown even if the timeout backstop won the race
+        // against the iframe's ack. The commit clears its own ref on resolution.
         const commitInFlight = manualEditTextCommitInFlightRef.current;
-        manualEditTextCommitInFlightRef.current = null;
         void (async () => {
-          try { await commitInFlight; } catch { /* applyManualEdit reports its own errors */ }
-          resolve();
+          let committed = true;
+          try {
+            // applyManualEdit resolves false when the save fails (or the source
+            // changed externally); surface that so callers can abort teardown.
+            if ((await commitInFlight) === false) committed = false;
+          } catch {
+            committed = false;
+          }
+          resolve(committed);
         })();
       };
       manualEditTextFinishRef.current = settle;
@@ -6323,8 +6342,30 @@ function HtmlViewer({
     });
   }
 
+  // Settles whatever inline text edit is still pending before teardown and
+  // reports whether it committed cleanly: the live session if one is active,
+  // otherwise an in-flight commit left by an iframe-driven finish (Enter /
+  // click-another-target). Returns false on a failed commit so callers keep
+  // edit mode open with the error rather than tearing down through it (#4291).
+  async function settlePendingManualEditCommit(): Promise<boolean> {
+    if (manualEditTextSessionIdRef.current) {
+      return finishManualEditTextSession(true);
+    }
+    const commitInFlight = manualEditTextCommitInFlightRef.current;
+    if (!commitInFlight) return true;
+    try {
+      return (await commitInFlight) !== false;
+    } catch {
+      return false;
+    }
+  }
+
   async function exitManualEditModeAfterFlush(): Promise<boolean> {
-    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(true);
+    // A failed text commit must keep edit mode open with its error visible,
+    // rather than tearing down (which would clear the error) and looking saved.
+    if (!(await settlePendingManualEditCommit())) {
+      return false;
+    }
     const ok = await flushManualEditStyleSave();
     if (!ok) return false;
     setManualEditPanelPosition(null);
@@ -6365,8 +6406,11 @@ function HtmlViewer({
 
   async function clearManualEditTargetSelection() {
     // If an inline edit is still live (e.g. clearing the selection from the
-    // panel mid-edit), commit it through the iframe first so it is not lost.
-    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(true);
+    // panel mid-edit), commit it first so it is not lost. Keep the selection
+    // and the error if that commit fails.
+    if (!(await settlePendingManualEditCommit())) {
+      return;
+    }
     cancelManualEditStyleDraft();
     selectedManualEditTargetIdRef.current = null;
     manualEditTextSessionIdRef.current = null;
@@ -6381,7 +6425,11 @@ function HtmlViewer({
   // the toolbar toggle's job. Dismiss flushes any in-flight tweak first so
   // nothing is lost; cancel reverts the in-flight unsaved tweak instead.
   async function dismissManualEditPanel() {
-    if (manualEditTextSessionIdRef.current) await finishManualEditTextSession(true);
+    // Closing the panel must not swallow a failed text commit: keep it open
+    // with the error if the pending edit could not be saved.
+    if (!(await settlePendingManualEditCommit())) {
+      return;
+    }
     const ok = await flushManualEditStyleSave();
     if (!ok) return;
     if (selectedManualEditTarget) void clearManualEditTargetSelection();
