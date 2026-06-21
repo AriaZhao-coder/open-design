@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 // Regression guard for #4468: the home context picker (the surface above the
 // prompt with the Design files / Plugins / Skills / MCP / Connectors tabs) drew
 // its secondary text — per-tab counts, section labels, option meta, and the
-// hover-card kicker — in `--text-faint`. In dark mode that token (#4e4b46) sits
+// hover-card kicker and meta row — in `--text-faint`. In dark mode that token (#4e4b46) sits
 // at ~1.8:1 against the picker panel, far below the WCAG AA threshold, so the
 // labels read as unreadable bleed-through (the reported theme). This test
 // resolves each selector's color token from the real stylesheets and asserts
@@ -103,12 +103,14 @@ function contrastRatio(fg: Rgb, bg: Rgb): number {
 // Each picker secondary-text selector paired with the picker surface it renders
 // on (verified against HomeHero.tsx nesting): tab counts sit in the tabs bar
 // (`--bg-subtle`); section labels and option meta sit in the results area
-// (`--bg-panel`); the hover kicker sits on the 72/28 subtle→panel hover card.
+// (`--bg-panel`); the hover-card kicker and meta row both sit on the 72/28
+// subtle→panel hover card.
 const SECONDARY_TEXT = [
   { selector: '.home-hero__mention-tab span:last-child', background: '--bg-subtle' as const },
   { selector: '.home-hero__mention-section-label', background: '--bg-panel' as const },
   { selector: '.home-hero__plugin-option-meta', background: '--bg-panel' as const },
   { selector: '.home-hero__plugin-hover-kicker', background: 'hover-card' as const },
+  { selector: '.home-hero__plugin-hover-meta', background: 'hover-card' as const },
 ];
 
 describe('Home context picker secondary-text contrast (#4468)', () => {
