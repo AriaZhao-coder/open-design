@@ -1357,7 +1357,12 @@ a.avatar-item:visited {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -10px;
+  /* Do not overhang the chat pane. The chat log's scrollbar sits flush against
+     this divider's left edge, so a negative `left` lets the resize grab area
+     (z-index: 45) cover the scrollbar and hijack scrollbar drags into a panel
+     resize (#4797). Keep the wider grab area on the workspace side, which has
+     no edge scrollbar here. */
+  left: 0;
   right: -10px;
   cursor: col-resize;
 }
